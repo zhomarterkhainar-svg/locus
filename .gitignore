@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+models/*.pt
+models/*.onnx
+node_modules/
+frontend/dist/
+.pytest_cache/
+.impeccable/review/
+.impeccable/config.local.json
+*.log
+runs/
+data/labels/*.jsonl
+backend/tests/eval_images/*.jpg
+backend/tests/images/*.jpg

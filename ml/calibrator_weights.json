@@ -1,0 +1,18 @@
+{
+  "trained": false,
+  "note": "Априорные веса, заданы вручную до разметки. Замените: python ml/train_calibrator.py data/labels/*.jsonl",
+  "samples": 0,
+  "metrics": null,
+  "bias": -1.7,
+  "weights": {
+    "geo": 1.9,
+    "geo_far": -3.5,
+    "text": 1.6,
+    "source": 1.9,
+    "visual": 1.0,
+    "category": 0.9,
+    "trash": -3.2,
+    "watermark": -2.0
+  },
+  "thresholds": {"high": 0.75, "medium": 0.5}
+}
