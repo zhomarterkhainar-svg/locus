@@ -1,0 +1,9 @@
+.git
+**/node_modules
+frontend/dist
+models/*.pt
+backend/tests
+**/__pycache__
+.env
+.impeccable
+data
