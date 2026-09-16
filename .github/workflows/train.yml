@@ -71,6 +71,13 @@ jobs:
       - name: Независимый ручной набор
         run: python ml/fetch_eval_images.py || echo "часть проверочных фото не скачалась"
 
+      - name: Сквозная офлайн-сборка с настоящими моделями
+        continue-on-error: true
+        working-directory: backend
+        run: |
+          pip install pytest pytest-asyncio respx
+          pytest -q tests/test_pipeline_offline.py -s
+
       - name: Набор данных (Commons + Places365)
         if: contains(env.STAGES, 'heads')
         run: python ml/build_dataset.py

@@ -196,7 +196,7 @@ async def _race_mirrors(q: str, per_request_timeout: float) -> dict[str, Any]:
     async def one(url: str) -> dict[str, Any]:
         try:
             r = await c.post(url, data={"data": q}, timeout=per_request_timeout)
-        except httpx.HTTPError as e:
+        except Exception as e:  # noqa: BLE001  любое падение одного зеркала не должно ронять остальные
             raise SourceError(type(e).__name__) from e
         if r.status_code != 200:
             raise SourceError(f"HTTP {r.status_code}")
