@@ -3,7 +3,7 @@ import type { DescriptionView } from "../lib/types";
 export function Annotation({ description, building }: { description: DescriptionView | null; building: boolean }) {
   return (
     <section className="annotation" aria-labelledby="annotation-title">
-      <h2 id="annotation-title" className="panel-title">Аннотация</h2>
+      <h2 id="annotation-title" className="panel-title">Коротко о кампусе</h2>
       {!description ? (
         building ? (
           <div aria-hidden="true">

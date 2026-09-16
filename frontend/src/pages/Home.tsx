@@ -154,15 +154,11 @@ function SearchOutcome({ result, loading, onSuggestion }: { result: SearchResult
         {result.candidates.map((c) => (
           <li key={c.qid}>
             <Link to={`/u/${c.qid}`} className="cand">
-              {c.image ? (
-                <img className="cand__thumb" src={c.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(e) => (e.currentTarget.style.visibility = "hidden")} />
-              ) : (
-                <span className="cand__thumb cand__thumb--empty" />
-              )}
+              <CandThumb src={c.image} />
               <span className="cand__body">
                 <span className="cand__name">{c.label}</span>
                 <span className="cand__meta">{[c.city, c.country].filter(Boolean).join(", ")}</span>
-                {c.description ? <span className="cand__desc">{c.description}</span> : null}
+                {c.description && /[а-яёәғқңөұүһі]/i.test(c.description) ? <span className="cand__desc">{c.description}</span> : null}
               </span>
             </Link>
           </li>
@@ -170,6 +166,12 @@ function SearchOutcome({ result, loading, onSuggestion }: { result: SearchResult
       </ul>
     </div>
   );
+}
+
+function CandThumb({ src }: { src: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return <span className="cand__thumb cand__thumb--empty" aria-hidden="true" />;
+  return <img className="cand__thumb" src={src} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} />;
 }
 
 function CardAnatomy() {

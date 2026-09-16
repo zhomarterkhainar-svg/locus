@@ -43,7 +43,7 @@ async def main():
 
         async def profile(page):
             await page.goto(BASE + "/u/Q127745")
-            await page.wait_for_selector("text=Аннотация")
+            await page.wait_for_selector("text=Фонд фотографий")
             await page.wait_for_selector(".progress:not(.is-building)", timeout=45000)
             await page.wait_for_timeout(1500)
 
@@ -55,6 +55,11 @@ async def main():
         async def record(page):
             await profile(page)
             await page.click(".ccard__open")
+            await page.wait_for_timeout(700)
+
+        async def fact_tap(page):
+            await profile(page)
+            await page.click(".fact--confirmed[data-clickable=true] .fact__value")
             await page.wait_for_timeout(700)
 
         async def terms(page):
@@ -70,6 +75,7 @@ async def main():
             ("mobile-home", 390, 844, home),
             ("mobile", 390, 844, profile),
             ("mobile-record", 390, 844, record),
+            ("mobile-fact-tap", 390, 844, fact_tap),
             ("desktop-privacy", 1440, 900, terms),
         ]
         for name, w, h, fn in jobs:

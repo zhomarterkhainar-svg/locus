@@ -9,6 +9,7 @@ import { Icon } from "../components/Icon";
 import { PhotoDialog } from "../components/PhotoDialog";
 import { Progress } from "../components/Progress";
 import { RejectedList } from "../components/Rejected";
+import { SearchBox } from "../components/SearchBox";
 import { distance, num } from "../lib/format";
 import type { Box, FactView, PhotoView } from "../lib/types";
 import { useProfileStream } from "../lib/useProfileStream";
@@ -149,7 +150,11 @@ export function Profile() {
             {state.notices.map((n) => (
               <p key={n} className="notice notice--warn" role="status">{n}</p>
             ))}
+            <Annotation description={state.description} building={building} />
             <Progress state={state} onRebuild={rebuild} />
+            <div className="mobile-search">
+              <SearchBox size="compact" />
+            </div>
           </div>
           <CampusPlan campus={state.campus} photos={confirmed} highlight={new Set(evidence.keys())} />
         </header>
@@ -157,7 +162,6 @@ export function Profile() {
         <div className="profile__body">
           <aside className="profile__side">
             <Facts facts={facts} building={building} photos={state.photos} onHover={setHoverFact} onOpen={setOpenId} activeFact={hoverFact?.id ?? null} />
-            <Annotation description={state.description} building={building} />
           </aside>
 
           <section className="profile__fonds" aria-labelledby="fonds-title">
@@ -186,8 +190,10 @@ export function Profile() {
                     onClick={() => setDrawer(d.key)}
                   >
                     <span className="guide__label">{d.label}</span>
-                    <span className="guide__count num">{n}</span>
-                    {low ? <span className="guide__low">мало</span> : null}
+                    <span className={`guide__count num${low ? " is-low" : ""}`} title={low ? "мало подтверждённых фото" : undefined}>
+                      {n}
+                    </span>
+                    {low ? <span className="visually-hidden">, мало</span> : null}
                   </button>
                 );
               })}

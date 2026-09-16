@@ -58,3 +58,10 @@ export const REJECT_WORD: Record<string, string> = {
   download: "Не скачалось",
   off_topic_city: "Не вид города",
 };
+
+export function shortDate(value: string | null | undefined): string {
+  if (!value) return "";
+  const m = value.match(/^(\d{4})(?:-(\d{2})-(\d{2}))?/);
+  if (!m) return value;
+  return m[2] ? `${m[3]}.${m[2]}.${m[1]}` : m[1];
+}

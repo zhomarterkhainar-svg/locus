@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { FactView, PhotoView } from "../lib/types";
 import { FactStamp } from "./Stamp";
 
@@ -15,18 +16,41 @@ type Props = {
   activeFact: string | null;
 };
 
+function useNarrow() {
+  const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 1100px)").matches);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1100px)");
+    const on = () => setNarrow(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return narrow;
+}
+
+const RANK: Record<string, number> = { confirmed: 0, weak: 1, insufficient: 2, not_found: 3 };
+
 export function Facts({ facts, building, photos, onHover, onOpen, activeFact }: Props) {
+  const narrow = useNarrow();
+  const [showAll, setShowAll] = useState(false);
+  const collapsed = narrow && !showAll;
+  const shownIds = new Set(
+    (facts ?? [])
+      .slice()
+      .sort((a, b) => RANK[a.status] - RANK[b.status])
+      .slice(0, collapsed ? 3 : undefined)
+      .map((f) => f.id),
+  );
   return (
     <section className="facts" aria-labelledby="facts-title">
       <h2 id="facts-title" className="panel-title">Что видно на фото</h2>
-      <p className="panel-note">Факты считаются только по подтверждённым фото. Наведите на факт, чтобы увидеть доказательства на снимках.</p>
+      <p className="panel-note">Факты считаются только по подтверждённым фото. Наведите на факт, чтобы увидеть доказательства на снимках, или нажмите, чтобы открыть первое фото.</p>
       {!facts ? (
         <div className="facts__skeleton" aria-hidden={!building}>
           {building ? [0, 1, 2, 3].map((i) => <div key={i} className="skel skel--row" />) : <p className="panel-note">Факты не собрались.</p>}
         </div>
       ) : (
         GROUPS.map((g) => {
-          const items = facts.filter((f) => f.group === g.key);
+          const items = facts.filter((f) => f.group === g.key && shownIds.has(f.id));
           if (!items.length) return null;
           return (
             <div key={g.key} className="facts__group">
@@ -41,6 +65,14 @@ export function Facts({ facts, building, photos, onHover, onOpen, activeFact }: 
                     onFocus={() => onHover(f)}
                     onBlur={() => onHover(null)}
                     tabIndex={f.evidence.length ? 0 : -1}
+                    data-clickable={f.evidence.length > 0}
+                    onClick={(e) => {
+                      if ((e.target as HTMLElement).closest("a, button")) return;
+                      if (f.evidence[0] && photos[f.evidence[0].photo_id]) onOpen(f.evidence[0].photo_id);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && f.evidence[0] && photos[f.evidence[0].photo_id]) onOpen(f.evidence[0].photo_id);
+                    }}
                   >
                     <div className="fact__head">
                       <span className="fact__label">{f.label}</span>
@@ -75,6 +107,11 @@ export function Facts({ facts, building, photos, onHover, onOpen, activeFact }: 
           );
         })
       )}
+      {facts && narrow && facts.length > 3 ? (
+        <button type="button" className="btn btn--ghost btn--small facts__more" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? "Свернуть факты" : `Все факты (${facts.length})`}
+        </button>
+      ) : null}
     </section>
   );
 }

@@ -843,7 +843,7 @@ a.cand:hover {
 /* ---------- Тело профиля ---------- */
 .profile__body {
   display: grid;
-  grid-template-columns: 350px minmax(0, 1fr);
+  grid-template-columns: 320px minmax(0, 1fr);
   gap: var(--s-6);
   padding-top: var(--s-6);
   align-items: start;
@@ -866,13 +866,17 @@ a.cand:hover {
   margin-top: var(--s-4);
 }
 .facts__group h3 {
-  font-size: var(--fs-13);
-  font-weight: 500;
-  color: var(--ink-3);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: var(--fs-16);
+  font-weight: 600;
+  color: var(--ink);
   padding-bottom: var(--s-1);
   border-bottom: 1.5px solid var(--ink);
+}
+.facts__more {
+  margin-top: var(--s-3);
+}
+.fact[data-clickable="true"] {
+  cursor: pointer;
 }
 .facts__group ul {
   list-style: none;
@@ -935,6 +939,28 @@ a.cand:hover {
   margin-top: var(--s-1);
 }
 
+.label-block .annotation {
+  margin-top: var(--s-4);
+  max-width: 75ch;
+}
+.label-block .annotation .panel-title {
+  font-size: var(--fs-14);
+  font-weight: 600;
+}
+.label-block .annotation__text {
+  margin-top: var(--s-1);
+  color: var(--ink-2);
+}
+.label-block .annotation__sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--s-4);
+  list-style-position: inside;
+  padding-left: 0;
+}
+.mobile-search {
+  display: none;
+}
 .annotation__text {
   margin-top: var(--s-3);
   font-size: var(--fs-16);
@@ -980,8 +1006,11 @@ a.cand:hover {
 }
 .guides {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px 4px;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
   margin-bottom: -1px;
   position: relative;
   z-index: 1;
@@ -990,18 +1019,27 @@ a.cand:hover {
   flex: none;
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
-  padding: 7px 12px 8px;
+  gap: 4px;
+  padding: 7px 6px 7px;
   background: var(--guide);
   border: var(--hair);
+  border-bottom-color: var(--ink);
   border-radius: 3px 3px 0 0;
-  font-size: var(--fs-14);
+  font-size: var(--fs-13);
   color: var(--ink-2);
   cursor: pointer;
 }
+.guide--cut1 {
+  padding-top: 12px;
+}
+.guide--cut2 {
+  padding-top: 17px;
+}
 .guide:hover {
   color: var(--ink);
-  border-color: var(--ink-3);
+  border-top-color: var(--ink-3);
+  border-left-color: var(--ink-3);
+  border-right-color: var(--ink-3);
 }
 .guide.is-active {
   background: var(--paper-deep);
@@ -1012,17 +1050,15 @@ a.cand:hover {
 }
 .guide__count {
   font-size: var(--fs-12);
-  color: var(--ink-3);
+  color: var(--ink-2);
+}
+.guide__count.is-low {
+  text-decoration: underline dotted var(--medium);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
 }
 .guide.is-empty .guide__label {
   color: var(--ink-3);
-}
-.guide__low {
-  font-family: var(--font-field);
-  font-size: var(--fs-11);
-  color: var(--medium);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 .fonds__panel {
   background: var(--paper-deep);
@@ -1136,7 +1172,8 @@ a.cand:hover {
   margin-left: -5px;
   border-radius: 50%;
   background: var(--paper-deep);
-  border: 1px solid var(--rule);
+  border: 0;
+  border-top: 1.5px solid var(--ink-3);
 }
 .anatomy__card .hole {
   background: var(--paper);
@@ -1457,10 +1494,7 @@ a.cand:hover {
     grid-template-columns: minmax(0, 1fr);
   }
   .profile__side {
-    order: 2;
-  }
-  .profile__fonds {
-    order: 1;
+    order: 0;
   }
   .record__grid {
     grid-template-columns: minmax(0, 1fr);
@@ -1478,6 +1512,10 @@ a.cand:hover {
   }
   .topbar__search {
     display: none;
+  }
+  .mobile-search {
+    display: block;
+    margin-top: var(--s-4);
   }
   .topbar__nav {
     font-size: var(--fs-13);
@@ -1529,11 +1567,6 @@ a.cand:hover {
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--s-2);
-  }
-  .guides {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 1px;
   }
   .fact__note {
     display: none;

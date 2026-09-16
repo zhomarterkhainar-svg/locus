@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { date } from "../lib/format";
+import { shortDate } from "../lib/format";
 
 const SHORT_SOURCE: Record<string, string> = { commons: "Commons", official: "Сайт вуза", flickr: "Flickr", wikipedia: "Википедия" };
 import type { Box, PhotoView } from "../lib/types";
@@ -50,7 +50,7 @@ export function CatalogCard({ photo, onOpen, highlightBoxes }: Props) {
           <p className="ccard__title">{photo.title || "Без названия"}</p>
           <p className="ccard__meta field">
             {SHORT_SOURCE[photo.source] ?? photo.source}
-            {year ? ` · ${date(year).replace(" г.", "")}` : ""}
+            {year ? ` · ${shortDate(year)}` : ""}
           </p>
           {photo.duplicates.length ? <p className="ccard__dups field">+{photo.duplicates.length} копии склеены</p> : null}
         </div>
