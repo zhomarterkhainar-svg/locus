@@ -86,6 +86,12 @@ SUB_PROMPTS: dict[str, list[str]] = {
     "sport_court": ["a photo of an indoor sports hall with a basketball or volleyball court"],
 }
 
+# Второй этап для вырезок кроватей: двухъярусная или обычная
+BUNK_PROMPTS: dict[str, list[str]] = {
+    "bunk_bed": ["a photo of a bunk bed", "a two-tier bunk bed with a ladder", "a metal double-decker bed in a dormitory"],
+    "single_bed": ["a photo of a single bed", "a single bed with a mattress and a blanket", "a low single bed next to a wall"],
+}
+
 SHELF_PREFIX = {
     "campus": "КАМ", "dormitory": "ОБЩ", "classroom": "АУД", "library": "БИБ", "lab": "ЛАБ",
     "sport": "СПТ", "canteen": "СТЛ", "student_life": "СТЖ", "city": "ГОР",

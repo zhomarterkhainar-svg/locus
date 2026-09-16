@@ -22,6 +22,7 @@ class EventLog:
     events: list[Event] = field(default_factory=list)
     finished: bool = False
     feature_rows: list[dict[str, Any]] = field(default_factory=list)
+    embeddings: dict[str, Any] = field(default_factory=dict)  # id фото в фонде -> эмбеддинг CLIP (float16)
     _cond: asyncio.Condition = field(default_factory=asyncio.Condition)
 
     def elapsed_ms(self) -> int:

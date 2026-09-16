@@ -6,9 +6,11 @@ import json
 import logging
 import re
 import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import numpy as np
 from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
@@ -20,6 +22,7 @@ from .pipeline.orchestrator import run_build
 from .ratelimit import RateLimiter
 from .search import wikidata
 from .verify import calibrator
+from .vision import heads as heads_info
 
 log = logging.getLogger("candid")
 settings = get_settings()
@@ -44,15 +47,45 @@ def _warmup() -> None:
         models_state["detector"] = f"error: {e}"
 
 
+PREWARM_QUERIES = ["ЕНУ", "КазНУ", "Nazarbayev University", "KIMEP", "SDU University", "КБТУ", "Satbayev University", "Astana IT University"]
+
+
+async def _prewarm() -> None:
+    """Прогрев медленного OSM-кэша для частых вузов, по одному запросу раз в несколько секунд."""
+    from .search.wikidata import get_university
+    from .sources import osm
+    await asyncio.sleep(20)
+    for q in PREWARM_QUERIES:
+        try:
+            res = await wikidata.search(q)
+            if not res["candidates"]:
+                continue
+            uni = await get_university(res["candidates"][0]["qid"])
+            if uni.lat is None or osm.cached_campus(uni) is not None:
+                continue
+            await asyncio.wait_for(asyncio.shield(osm.background_task(uni)), timeout=60)
+        except Exception as e:  # noqa: BLE001
+            log.info("prewarm %s: %s", q, e)
+        await asyncio.sleep(5)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     threading.Thread(target=_warmup, daemon=True).start()
+    prewarm = asyncio.create_task(_prewarm()) if settings.prewarm else None
     yield
+    if prewarm:
+        prewarm.cancel()
     await http.close()
 
 
-app = FastAPI(title="Candid AI", version="0.1.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], allow_methods=["GET"], allow_headers=["*"])
+app = FastAPI(
+    title="Candid AI",
+    version="0.2.0",
+    lifespan=lifespan,
+    description="Проверенный визуальный профиль университета по названию. Поток событий сборки: /api/profile/{qid}/stream (SSE).",
+)
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], allow_methods=["GET", "POST"], allow_headers=["*"])
 
 
 @app.middleware("http")
@@ -66,7 +99,7 @@ async def security_headers(request: Request, call_next):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "models": models_state, "calibrator": calibrator.info(),
+    return {"status": "ok", "models": models_state, "calibrator": calibrator.info(), "heads": heads_info.info(),
             "sources": {"flickr": bool(settings.flickr_api_key), "gemini": bool(settings.gemini_api_key)}}
 
 
@@ -135,6 +168,70 @@ async def features(qid: str):
     body = "\n".join(json.dumps(r, ensure_ascii=False) for r in build_log.feature_rows)
     return PlainTextResponse(body, media_type="application/x-ndjson",
                              headers={"Content-Disposition": f'attachment; filename="{qid}-features.jsonl"'})
+
+
+@app.get("/api/profile/{qid}/find")
+async def find_in_profile(qid: str, q: str = Query(..., min_length=2, max_length=120)):
+    """Поиск внутри собранного профиля текстом по эмбеддингам CLIP."""
+    from .pipeline.orchestrator import ML_LOCK
+    from .vision.clip_model import get_clip
+    from .vision.textsearch import rank, to_english
+
+    build_log = registry.get_fresh(qid)
+    if not build_log or not build_log.embeddings:
+        return JSONResponse({"error": "Профиль ещё не собран или в нём нет фото."}, status_code=404)
+    english, via = await to_english(q)
+    if not english:
+        return {"query": q, "english": None, "results": [],
+                "message": "Не понял запрос. Попробуйте проще: «бассейн», «кровати», «библиотека», «зимой»."}
+    ids = list(build_log.embeddings)
+    embs = np.stack([build_log.embeddings[i] for i in ids])
+
+    def encode() -> np.ndarray:
+        clip = get_clip()
+        t = clip.embed_text([f"a photo of {english}", english])
+        m = t.mean(axis=0)
+        return m / np.linalg.norm(m)
+
+    async with ML_LOCK:
+        text_emb = await asyncio.to_thread(encode)
+    results = rank(text_emb, ids, embs)
+    return {"query": q, "english": english, "via": via, "results": [{"id": i, "score": s} for i, s in results]}
+
+
+FEEDBACK_KINDS = {"wrong_university", "wrong_category", "duplicate", "not_a_photo", "correct"}
+feedback_limiter = RateLimiter(30)
+
+
+@app.post("/api/feedback")
+async def feedback(request: Request):
+    """Отметка «не тот вуз / не та категория». Копится в JSONL для дообучения калибратора."""
+    ok, retry = feedback_limiter.allow(_client_ip(request))
+    if not ok:
+        return JSONResponse({"error": f"Слишком много отметок подряд, подождите {retry} с."}, status_code=429)
+    try:
+        body = await request.json()
+    except ValueError:
+        return JSONResponse({"error": "Ожидается JSON."}, status_code=400)
+    qid, pid, kind = str(body.get("qid", "")), str(body.get("photo_id", "")), str(body.get("kind", ""))
+    if not re.fullmatch(r"Q\d{1,12}", qid) or not re.fullmatch(r"[0-9a-f]{16}", pid) or kind not in FEEDBACK_KINDS:
+        return JSONResponse({"error": "Неверные поля отметки."}, status_code=400)
+    category = str(body.get("category", ""))[:32]
+    row: dict = {"ts": int(time.time()), "qid": qid, "photo_id": pid, "kind": kind, "category": category}
+    build_log = registry.get_fresh(qid)
+    if build_log:
+        feat = next((r for r in build_log.feature_rows if r.get("id") == pid), None)
+        if feat:
+            row["features"] = feat.get("features")
+            row["label"] = 1 if kind == "correct" else 0 if kind == "wrong_university" else None
+    path = settings.path(settings.cache_dir) / "feedback.jsonl"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    except OSError:
+        return JSONResponse({"error": "Не удалось сохранить отметку."}, status_code=500)
+    return {"ok": True, "message": "Спасибо, отметка сохранена и попадёт в дообучение."}
 
 
 dist = settings.path(settings.frontend_dist)

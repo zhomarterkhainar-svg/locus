@@ -63,6 +63,10 @@ def _count(p: Photo, label: str, min_conf: float | None = None) -> int:
     return sum(1 for b in p.boxes if b["label"] == label and b["conf"] >= threshold)
 
 
+def _bunks(p: Photo) -> int:
+    return sum(1 for b in p.boxes if b["label"] == "кровать" and b["conf"] >= MIN_CONF["кровать"] and b.get("bunk", 0) >= 0.6)
+
+
 def _status(n: int, strong: int = 3) -> str:
     if n >= strong:
         return "confirmed"
@@ -94,6 +98,29 @@ def dorm_facts(photos: list[Photo], campus: Campus) -> list[Fact]:
     else:
         facts.append(Fact(id="dorm_beds", group="dormitory", label="Кроватей на фото комнаты", value="мало данных",
                           status="not_found", note="Подтверждённых фото жилых комнат не найдено."))
+
+    bunk_known = [p for p in with_beds if any("bunk" in b for b in p.boxes if b["label"] == "кровать")]
+    if bunk_known:
+        bunk = [p for p in bunk_known if _bunks(p) > 0]
+        n = len(bunk_known)
+        if bunk:
+            places = [_count(p, "кровать") + _bunks(p) for p in bunk]
+            facts.append(Fact(
+                id="dorm_bunk", group="dormitory", label="Двухъярусные кровати",
+                value=f"есть на {len(bunk)} из {n} фото",
+                status=_status(len(bunk), strong=2),
+                evidence=[_evidence(p, {"кровать"}) for p in bunk],
+                note=f"Второй этап классифицирует каждую найденную кровать. На фото с двухъярусными кроватями до {max(places)} спальных мест. "
+                     "Классификатор может ошибаться на ракурсах сверху.",
+            ))
+        else:
+            facts.append(Fact(
+                id="dorm_bunk", group="dormitory", label="Двухъярусные кровати",
+                value=f"не видно на {n} фото",
+                status="weak" if n >= 2 else "insufficient",
+                evidence=[_evidence(p, {"кровать"}) for p in bunk_known],
+                note="На найденных фото комнат все кровати одноярусные. Это не значит, что двухъярусных нет в других комнатах.",
+            ))
 
     desks = [p for p in rooms if _count(p, "стол", 0.35) > 0]
     if rooms:
