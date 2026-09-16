@@ -172,3 +172,28 @@ async def test_seed_cache_used_when_server_cache_empty(tmp_path, monkeypatch):
     cache.put("osm", fx.QID, osm.compact(fx.OVERPASS), target=cache.seed_path("osm", fx.QID))
     campus = await osm.fetch_campus(enu(), wait_s=0.01)
     assert campus.from_cache and campus.rings
+
+
+async def test_geocode_fallback_prefers_wikidata_tag(tmp_path):
+    from app.search import wikidata as wd_mod
+    ent = json.loads(json.dumps(fx.ENU))
+    del ent["claims"]["P625"]
+    pool = {fx.QID: ent, **fx.PLACES}
+    nominatim = [
+        {"lat": "51.0", "lon": "71.0", "category": "amenity", "type": "university", "extratags": {}},
+        {"lat": "51.1602", "lon": "71.4648", "category": "amenity", "type": "university", "extratags": {"wikidata": fx.QID}},
+    ]
+    with respx.mock(assert_all_called=False) as r:
+        r.get("https://www.wikidata.org/w/api.php").mock(side_effect=lambda req: Response(200, json={"entities": {
+            i: pool[i] for i in dict(req.url.params)["ids"].split("|") if i in pool}}))
+        r.get(url__startswith="https://nominatim.openstreetmap.org").mock(return_value=Response(200, json=nominatim))
+        uni = await wd_mod.get_university(fx.QID)
+    assert (uni.lat, uni.lon) == (51.1602, 71.4648)
+    assert "Nominatim" in uni.coords_source
+
+
+def test_geocode_pick_rejects_far_objects():
+    from app.sources.geocode import pick
+    far = [{"lat": "43.2", "lon": "76.9", "category": "amenity", "type": "university", "extratags": {}}]
+    assert pick(far, enu()) is None  # Алматы в 1000 км от Астаны
+    assert pick([{**far[0], "extratags": {"wikidata": enu().qid}}], enu()) is not None

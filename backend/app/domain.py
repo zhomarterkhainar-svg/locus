@@ -40,6 +40,7 @@ class University:
     students: int | None
     sitelinks: dict[str, str]
     instance_of: list[str] = field(default_factory=list)
+    coords_source: str = "Wikidata"
 
     def names(self) -> list[str]:
         seen: list[str] = []
@@ -62,6 +63,7 @@ class University:
             "inception": self.inception,
             "students": self.students,
             "wikidata_url": f"https://www.wikidata.org/wiki/{self.qid}",
+            "coords_source": self.coords_source,
         }
 
 

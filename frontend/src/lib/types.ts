@@ -35,6 +35,7 @@ export type University = {
   students: number | null;
   wikidata_url: string;
   city_distance_m?: number;
+  coords_source?: string;
 };
 
 export type SignalView = {

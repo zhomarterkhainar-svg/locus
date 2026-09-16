@@ -255,7 +255,7 @@ async def search(query: str) -> dict[str, Any]:
     return {"query": query, "status": status, "candidates": candidates, "suggestion": suggestion}
 
 
-async def get_university(qid: str) -> University:
+async def get_university(qid: str, geocode: bool = True) -> University:
     if not re.fullmatch(r"Q\d+", qid):
         raise SourceError("неверный идентификатор Wikidata")
     ents = await _wbgetentities([qid], "labels|descriptions|aliases|claims|sitelinks", timeout=get_timeout())
@@ -283,7 +283,7 @@ async def get_university(qid: str) -> University:
         year = int(m.group(1)) if m else None
     students = _first_value(c, "P2196")
     aliases = [a["value"] for vals in e.get("aliases", {}).values() for a in vals]
-    return University(
+    uni = University(
         qid=qid,
         label=_label(e),
         labels={k: v["value"] for k, v in e.get("labels", {}).items()},
@@ -301,6 +301,16 @@ async def get_university(qid: str) -> University:
         sitelinks={k: v["title"] for k, v in e.get("sitelinks", {}).items()},
         instance_of=_ids(c, "P31"),
     )
+    if uni.lat is None and geocode:
+        from ..sources.geocode import locate
+        try:
+            loc = await locate(uni)
+        except Exception:  # noqa: BLE001
+            loc = None
+        if loc:
+            uni.lat, uni.lon, how = loc
+            uni.coords_source = f"OpenStreetMap Nominatim ({how}), в Wikidata координат нет"
+    return uni
 
 
 def get_timeout() -> float:

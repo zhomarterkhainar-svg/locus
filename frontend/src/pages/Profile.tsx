@@ -167,6 +167,9 @@ export function Profile() {
                   {uni.inception ? ` · основан в ${uni.inception}` : ""}
                   {uni.students ? ` · ${num(uni.students)} студентов по Wikidata` : ""}
                 </p>
+                {uni.coords_source && uni.coords_source !== "Wikidata" ? (
+                  <p className="label-block__meta panel-note">Координаты: {uni.coords_source}.</p>
+                ) : null}
                 <p className="label-block__links">
                   {uni.website ? (
                     <a href={uni.website} target="_blank" rel="noreferrer">

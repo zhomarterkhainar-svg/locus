@@ -109,7 +109,7 @@ class ProfileBuild:
     async def _run(self, t0: float) -> None:
         await self.stage("resolve", "running")
         try:
-            self.uni = await asyncio.wait_for(get_university(self.qid), timeout=self.s.resolve_timeout + 2)
+            self.uni = await asyncio.wait_for(get_university(self.qid), timeout=self.s.resolve_timeout + 7)
         except (SourceError, asyncio.TimeoutError) as e:
             await self.stage("resolve", "error")
             await self.emit("error", {"message": f"Не удалось получить карточку вуза из Wikidata: {e or 'нет ответа'}.", "fatal": True})
