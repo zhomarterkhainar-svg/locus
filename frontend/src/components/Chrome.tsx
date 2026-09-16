@@ -1,0 +1,41 @@
+import { Link, NavLink } from "react-router-dom";
+import { SearchBox } from "./SearchBox";
+
+export function TopBar({ withSearch = false }: { withSearch?: boolean }) {
+  return (
+    <header className="topbar">
+      <div className="topbar__inner">
+        <Link to="/" className="wordmark" aria-label="Candid AI, на главную">
+          <span className="wordmark__mark" aria-hidden="true" />
+          Candid AI
+        </Link>
+        {withSearch ? (
+          <div className="topbar__search">
+            <SearchBox size="compact" />
+          </div>
+        ) : null}
+        <nav className="topbar__nav" aria-label="Разделы">
+          <NavLink to="/method">Как это работает</NavLink>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+export function Footer() {
+  return (
+    <footer className="footer">
+      <div className="footer__inner">
+        <p className="footer__lead">
+          Candid AI собирает фото из открытых источников и показывает, откуда каждое. Фото принадлежат своим авторам.
+        </p>
+        <nav className="footer__nav" aria-label="Документы">
+          <Link to="/method">Метод и ограничения</Link>
+          <Link to="/terms">Условия использования</Link>
+          <Link to="/privacy">Политика конфиденциальности</Link>
+        </nav>
+        <p className="footer__note">Прототип для LOCUS Startup Hackathon 2026, кейс 1. Данные: Wikidata, Wikimedia Commons, OpenStreetMap, сайты вузов, Flickr.</p>
+      </div>
+    </footer>
+  );
+}

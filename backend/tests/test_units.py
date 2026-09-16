@@ -131,3 +131,9 @@ def test_facts_engine_counts_independent_evidence():
     assert beds.value.startswith("2–3")
     assert facts["dorm_osm"].status == "confirmed"
     assert statistics.median([2, 3]) == 2.5
+
+
+def test_sentence_split_keeps_initials():
+    from app.describe.describe import split_sentences
+    parts = split_sentences("Университет имени Л. Н. Гумилёва находится в Астане. ЕНУ включает 13 факультетов.")
+    assert parts == ["Университет имени Л. Н. Гумилёва находится в Астане.", "ЕНУ включает 13 факультетов."]

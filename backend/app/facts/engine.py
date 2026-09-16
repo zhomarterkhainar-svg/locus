@@ -162,7 +162,12 @@ def sport_facts(photos: list[Photo], campus: Campus) -> list[Fact]:
         facts.append(Fact(
             id=key, group="sport", label=label, value=", ".join(parts) if parts else "не найдено", status=status,
             evidence=[_evidence(p, set()) for p in ph], osm=[o.public() for o in osm[:6]],
-            note="Подтверждено, когда совпадают фото и объект OpenStreetMap." if status != "confirmed" else "Фото и карта совпадают.",
+            note={
+                "confirmed": "Фото и объект на карте OpenStreetMap совпадают.",
+                "weak": "Есть несколько фото, но объект на карте не отмечен.",
+                "insufficient": "Есть только один признак: одно фото или объект на карте.",
+                "not_found": "Ни фото, ни объекта на карте. Это не значит, что его нет.",
+            }[status],
         ))
     return facts
 

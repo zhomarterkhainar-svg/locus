@@ -17,7 +17,22 @@ from ..config import get_settings
 from ..domain import University
 from ..http import client
 
-SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[А-ЯЁA-ZӘҒҚҢӨҰҮҺІ«\"(])")
+_BOUNDARY = re.compile(r"[.!?]\s+(?=[А-ЯЁA-ZӘҒҚҢӨҰҮҺІ«\"(])")
+_ABBR = re.compile(r"(\b[А-ЯЁA-ZӘҒҚҢӨҰҮҺІ]|\bим|\bг|\bул|\bт\.д|\bт\.е|\bпр|\bим\.|\bсм|\bок)$")
+
+
+def split_sentences(text: str) -> list[str]:
+    out, start = [], 0
+    for m in _BOUNDARY.finditer(text):
+        head = text[start:m.start()]
+        if _ABBR.search(head):
+            continue
+        out.append(text[start:m.start() + 1].strip())
+        start = m.end()
+    tail = text[start:].strip()
+    if tail:
+        out.append(tail)
+    return out
 
 
 @dataclass
@@ -93,14 +108,15 @@ def extractive(sources: list[SourceText]) -> list[dict[str, Any]]:
     wiki = sorted([s for s in sources if s.kind == "wikipedia"], key=lambda s: {"ru": 0, "en": 1, "kk": 2}.get(s.lang, 3))
     if wiki:
         src = wiki[0]
-        for sent in SENT_SPLIT.split(src.text)[:3]:
+        for sent in split_sentences(src.text)[:3]:
             sent = sent.strip().replace(" — ", ": ", 1).replace("—", ",")
             if len(sent) > 25:
                 out.append({"text": sent, "sources": [src.id]})
     official = next((s for s in sources if s.kind == "official" and len(s.text) > 120), None)
     if official and len(out) < 4:
-        first = SENT_SPLIT.split(official.text)[0][:280].strip()
-        if len(first) > 40:
+        first = split_sentences(official.text)[0][:280].strip()
+        known = " ".join(x["text"] for x in out).lower()
+        if len(first) > 40 and first.lower()[:40] not in known:
             out.append({"text": first, "sources": [official.id]})
     return out
 

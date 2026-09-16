@@ -1,0 +1,53 @@
+:root {
+  /* Бумага и картон */
+  --paper: #e3e5df;
+  --paper-deep: #d8dbd3;
+  --card: #f5f5f0;
+  --guide: #cdd3ca;
+  --guide-active: #f5f5f0;
+  --rule: #b6bab0;
+  --rule-soft: #d0d3cb;
+
+  /* Чернила */
+  --ink: #172033;
+  --ink-2: #434d60;
+  --ink-3: #566072;
+
+  /* Штемпель и карандаш */
+  --stamp: #2340a8;
+  --stamp-deep: #1a3185;
+  --stamp-wash: #dfe4f3;
+  --pencil: #b8321c;
+  --pencil-box: #e2462b;
+  --pencil-wash: #f3e1db;
+  --medium: #6a5a13;
+
+  --font-ui: "Golos Text", "PT Sans", system-ui, sans-serif;
+  --font-field: "PT Mono", ui-monospace, "Cascadia Mono", monospace;
+
+  --fs-11: 0.6875rem;
+  --fs-12: 0.75rem;
+  --fs-13: 0.8125rem;
+  --fs-14: 0.875rem;
+  --fs-16: 1rem;
+  --fs-19: 1.1875rem;
+  --fs-23: 1.4375rem;
+  --fs-28: 1.75rem;
+  --fs-34: 2.125rem;
+  --fs-44: 2.75rem;
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+
+  --radius: 2px;
+  --hair: 1px solid var(--rule);
+  --hair-soft: 1px solid var(--rule-soft);
+  --page-max: 1360px;
+  --t-fast: 120ms;
+}
