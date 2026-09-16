@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
     flickr_api_key: str = ""
-    contact: str = "https://github.com/your-team/candid-ai"
+    contact: str = "https://github.com/zhomarterkhainar-svg/locus"
 
     # OpenCLIP: архитектура и веса. CLIP_PRETRAINED — тег open_clip (скачивается с Hugging Face Hub при сборке образа),
     # CLIP_WEIGHTS — локальный файл, используется, если тег не задан или недоступен.

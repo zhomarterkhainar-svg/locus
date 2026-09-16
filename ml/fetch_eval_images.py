@@ -13,7 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FOLDER = ROOT / "backend/tests/eval_images"
-UA = "CandidAI-eval/0.1 (+https://github.com/your-team/candid-ai)"
+UA = "CandidAI-eval/0.1 (+https://github.com/zhomarterkhainar-svg/locus)"
 
 
 def main() -> None:

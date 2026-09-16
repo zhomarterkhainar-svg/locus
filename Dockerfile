@@ -13,7 +13,9 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     HOME=/home/user \
     YOLO_CONFIG_DIR=/tmp/ultralytics \
-    TORCH_THREADS=2
+    TORCH_THREADS=2 \
+    CACHE_DIR=/tmp/candid-cache \
+    PREWARM=true
 RUN apt-get update \
  && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
  && rm -rf /var/lib/apt/lists/* \
@@ -28,6 +30,7 @@ COPY scripts/download_models.py scripts/download_models.py
 RUN python scripts/download_models.py
 
 COPY backend/app backend/app
+COPY backend/seed_cache backend/seed_cache
 COPY ml ml
 COPY --from=web /web/dist frontend/dist
 RUN chown -R user:user /app

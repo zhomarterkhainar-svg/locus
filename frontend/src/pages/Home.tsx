@@ -65,7 +65,7 @@ export function Home() {
             <SearchOutcome result={result} loading={loading} onSuggestion={run} />
             <p className="home__compare">
               Выбираете из двух?{" "}
-              <Link to="/compare?a=Q127745&b=Q1972870">Сравните вузы по фактам с фото-доказательствами</Link>
+              <Link to="/compare?a=Q127745&b=Q2783344">Сравните вузы по фактам с фото-доказательствами</Link>
             </p>
           </div>
           <CardAnatomy />
