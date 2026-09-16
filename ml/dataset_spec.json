@@ -1,0 +1,85 @@
+{
+  "_doc": "Открытые данные для обучения голов классификатора. commons: [категория Wikimedia Commons, глубина обхода]; places365: классы валидационной выборки Places365-Standard (CC BY). Ключи совпадают с разделами сервиса (backend/app/vision/categories.py).",
+  "per_class_limit": 320,
+  "places_per_class": 100,
+  "skip_subcategories": ["logo", "map", "portrait", "people", "svg", "drawings", "plans", "diagram", "stamps", "videos", "audio", "pdf"],
+  "category": {
+    "campus": {
+      "commons": [["Campuses", 2], ["Universities and colleges in Astana", 2], ["Universities and colleges in Almaty", 2], ["Campuses in the United States", 1]],
+      "places365": ["campus", "building_facade", "office_building"]
+    },
+    "dormitory": {
+      "commons": [["Dormitories", 2], ["Dormitory rooms", 1], ["Dormitories in the United States", 1], ["Dormitories in Russia", 1], ["Bunk beds", 1], ["Hostel rooms", 1]],
+      "places365": ["dorm_room", "youth_hostel"]
+    },
+    "classroom": {
+      "commons": [["Lecture halls", 2], ["Classrooms", 1], ["Computer labs", 1], ["Computer rooms", 1], ["Lecture halls by country", 2]],
+      "places365": ["classroom", "lecture_room", "computer_room"]
+    },
+    "library": {
+      "commons": [["Reading rooms", 2], ["Interiors of libraries", 2], ["Libraries", 1]],
+      "places365": ["library/indoor"]
+    },
+    "lab": {
+      "commons": [["Laboratories", 1], ["Chemistry laboratories", 1], ["Biology laboratories", 1], ["Physics laboratories", 1], ["Engineering laboratories", 1]],
+      "places365": ["chemistry_lab", "biology_laboratory", "physics_laboratory", "clean_room"]
+    },
+    "sport": {
+      "commons": [["Indoor swimming pools", 1], ["Gymnasiums", 1], ["Weight training", 1], ["Gyms", 0], ["Stadiums", 1], ["Basketball courts", 1], ["Volleyball courts", 1], ["Running tracks", 1], ["Indoor arenas", 1]],
+      "places365": ["gymnasium/indoor", "swimming_pool/indoor", "stadium/football", "basketball_court/indoor", "athletic_field/outdoor"]
+    },
+    "canteen": {
+      "commons": [["Cafeterias", 2], ["Canteens", 1], ["Food courts", 1], ["Dining halls", 1], ["Interiors of cafés", 1], ["Cafeterias in Russia", 1]],
+      "places365": ["cafeteria", "food_court", "dining_hall"]
+    },
+    "student_life": {
+      "commons": [["Graduation ceremonies", 2], ["Students", 1], ["Conferences", 1], ["Concerts", 1], ["Festivals", 1], ["Group photographs", 1]],
+      "places365": []
+    },
+    "city": {
+      "commons": [["Cityscapes", 1], ["Skylines", 1], ["Urban landscapes", 1], ["Astana", 1], ["Almaty", 1], ["Skylines of Astana", 1], ["Monuments and memorials", 1]],
+      "places365": ["street", "downtown", "plaza", "skyscraper", "mosque/outdoor", "crosswalk"]
+    },
+    "trash:logo": {
+      "commons": [["Logos of universities", 1], ["Logos of educational institutions", 1], ["Logos", 1], ["Emblems", 1], ["Coats of arms", 1]],
+      "places365": []
+    },
+    "trash:text": {
+      "commons": [["Posters", 1], ["Event posters", 1], ["Diplomas", 1], ["Certificates", 1], ["Screenshots", 1]],
+      "places365": []
+    },
+    "trash:portrait": {
+      "commons": [["Official portraits", 1], ["Portrait photographs of men", 0], ["Portrait photographs of women", 0], ["Portrait photographs", 0]],
+      "places365": []
+    },
+    "trash:map": {
+      "commons": [["Floor plans", 1], ["Campus maps", 1], ["Maps", 1], ["Charts", 0], ["Diagrams", 0]],
+      "places365": []
+    },
+    "trash:stamp": {
+      "commons": [["Stamps of Kazakhstan", 2], ["Postage stamps", 1], ["Coins", 1], ["Coins of Kazakhstan", 1], ["Banknotes", 1]],
+      "places365": []
+    },
+    "trash:other": {
+      "commons": [["Food", 1], ["Automobiles", 1], ["Illustrations", 0], ["3D computer graphics", 1]],
+      "places365": []
+    }
+  },
+  "dorm_sub": {
+    "dorm_room": {"commons": [["Dormitory rooms", 1], ["Bunk beds", 1], ["Hostel rooms", 1], ["Bedrooms", 1]], "places365": ["dorm_room", "bedroom", "youth_hostel"]},
+    "dorm_kitchen": {"commons": [["Kitchens", 1]], "places365": ["kitchen"]},
+    "dorm_bathroom": {"commons": [["Bathrooms", 1]], "places365": ["bathroom", "shower"]},
+    "dorm_exterior": {"commons": [["Dormitories in the United States", 1], ["Dormitories in Russia", 1], ["Dormitories", 1]], "places365": ["apartment_building/outdoor"]},
+    "dorm_corridor": {"commons": [["Corridors", 1]], "places365": ["corridor"]}
+  },
+  "sport_sub": {
+    "sport_gym": {"commons": [["Weight training", 1], ["Gyms", 0]], "places365": ["gymnasium/indoor"]},
+    "sport_pool": {"commons": [["Indoor swimming pools", 1], ["Swimming pools", 1]], "places365": ["swimming_pool/indoor"]},
+    "sport_stadium": {"commons": [["Stadiums", 1], ["Running tracks", 1]], "places365": ["stadium/football", "athletic_field/outdoor"]},
+    "sport_court": {"commons": [["Gymnasiums", 1], ["Basketball courts", 1], ["Volleyball courts", 1], ["Indoor arenas", 1]], "places365": ["basketball_court/indoor"]}
+  },
+  "bunk": {
+    "bunk_bed": {"commons": [["Bunk beds", 2]], "places365": []},
+    "single_bed": {"commons": [["Single beds", 1], ["Beds", 1], ["Bedrooms", 1]], "places365": ["bedroom", "hotel_room"]}
+  }
+}

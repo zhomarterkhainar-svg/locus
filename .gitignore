@@ -14,3 +14,8 @@ runs/
 data/labels/*.jsonl
 backend/tests/eval_images/*.jpg
 backend/tests/images/*.jpg
+
+# данные обучения и бенчмарка (фото не храним в репозитории)
+data/
+!data/.gitkeep
+frontend/tsconfig.tsbuildinfo

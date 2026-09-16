@@ -1,18 +1,24 @@
-"""Обучение калибратора достоверности на размеченных фото.
+"""Обучение калибратора достоверности (логистическая регрессия по сигналам принадлежности).
 
-Разметка: выгрузите признаки собранного профиля
-  curl -o data/labels/Q127745.jsonl http://localhost:8000/api/profile/Q127745/features.jsonl
-и в каждой строке поставьте "label": 1 (фото относится к вузу и разделу) или 0 (не относится).
-Строки с label = null пропускаются.
+Данные (JSONL, строка = фото-кандидат для вуза):
+- data/labels/weak_commons.jsonl — слабая разметка по категориям Commons (ml/build_calibrator_data.py);
+- ручная разметка: выгрузка GET /api/profile/{QID}/features.jsonl с проставленным "label" 0/1;
+- отметки пользователей «не тот вуз» из /api/feedback (label 0).
+Ручные строки весят больше слабых (--human-weight).
+
+Оценка: кросс-валидация по вузам (фото одного вуза не попадают одновременно в обучение и проверку):
+точность, Brier, ECE, точность среди фото выше порога «подтверждено». Порог «подтверждено» подбирается
+так, чтобы точность выше него по кросс-валидации была не ниже --target-precision.
 
 python ml/train_calibrator.py data/labels/*.jsonl
-Скрипт делает 5-кратную кросс-валидацию, печатает точность, Brier и ECE,
-и записывает веса в ml/calibrator_weights.json с пометкой trained = true.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
+from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -22,32 +28,38 @@ FEATURES = ["geo", "geo_far", "text", "source", "visual", "category", "trash", "
 OUT = ROOT / "ml" / "calibrator_weights.json"
 
 
-def load(paths: list[str]) -> tuple[np.ndarray, np.ndarray]:
-    xs, ys = [], []
+def row_features(f: dict) -> list[float]:
+    geo = float(f.get("geo", 0.0))
+    return [max(geo, 0.0), 1.0 if geo < 0 else float(f.get("geo_far", 0.0)), f.get("text", 0), f.get("source", 0),
+            f.get("visual", 0), f.get("category", 0), f.get("trash", 0), f.get("watermark", 0)]
+
+
+def load(paths: list[str], human_weight: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Counter]:
+    xs, ys, ws, groups = [], [], [], []
+    stats: Counter = Counter()
     for p in paths:
         for line in Path(p).read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
             row = json.loads(line)
-            if row.get("label") not in (0, 1):
+            if row.get("label") not in (0, 1) or not row.get("features"):
                 continue
-            f = row["features"]
-            geo = f.get("geo", 0.0)
-            xs.append([max(geo, 0.0), 1.0 if geo < 0 else 0.0, f.get("text", 0), f.get("source", 0), f.get("visual", 0),
-                       f.get("category", 0), f.get("trash", 0), f.get("watermark", 0)])
+            weak = bool(row.get("weak"))
+            xs.append(row_features(row["features"]))
             ys.append(row["label"])
-    return np.array(xs, dtype=float), np.array(ys, dtype=float)
+            ws.append(1.0 if weak else human_weight)
+            groups.append(row.get("university") or row.get("qid") or "?")
+            stats["weak" if weak else "human"] += 1
+    return np.array(xs, float), np.array(ys, float), np.array(ws, float), np.array(groups), stats
 
 
-def fit(x: np.ndarray, y: np.ndarray, l2: float = 0.05, lr: float = 0.3, epochs: int = 4000) -> tuple[np.ndarray, float]:
-    w = np.zeros(x.shape[1])
-    b = 0.0
-    for _ in range(epochs):
-        p = 1 / (1 + np.exp(-(x @ w + b)))
-        g = p - y
-        w -= lr * (x.T @ g / len(y) + l2 * w)
-        b -= lr * g.mean()
-    return w, b
+def fit(x: np.ndarray, y: np.ndarray, w: np.ndarray, C: float = 1.0) -> tuple[np.ndarray, float]:
+    from sklearn.linear_model import LogisticRegression
+
+    # без балансировки классов: слабая разметка собрана примерно поровну, а балансировка портит калибровку
+    clf = LogisticRegression(C=C, max_iter=2000)
+    clf.fit(x, y, sample_weight=w / w.mean())
+    return clf.coef_[0], float(clf.intercept_[0])
 
 
 def ece(p: np.ndarray, y: np.ndarray, bins: int = 10) -> float:
@@ -60,42 +72,69 @@ def ece(p: np.ndarray, y: np.ndarray, bins: int = 10) -> float:
     return float(total)
 
 
-def main(paths: list[str]) -> None:
-    x, y = load(paths)
+def group_folds(groups: np.ndarray, k: int, seed: int = 7) -> list[np.ndarray]:
+    uniq = np.array(sorted(set(groups.tolist())))
+    rng = np.random.default_rng(seed)
+    rng.shuffle(uniq)
+    parts = np.array_split(uniq, min(k, len(uniq)))
+    return [np.where(np.isin(groups, part))[0] for part in parts]
+
+
+def pick_threshold(p: np.ndarray, y: np.ndarray, target: float) -> float:
+    for t in np.arange(0.6, 0.951, 0.01):
+        m = p >= t
+        if m.sum() >= 10 and y[m].mean() >= target:
+            return round(float(t), 2)
+    return 0.9
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("paths", nargs="+")
+    ap.add_argument("--human-weight", type=float, default=3.0)
+    ap.add_argument("--target-precision", type=float, default=0.92)
+    args = ap.parse_args()
+    x, y, w, groups, stats = load(args.paths, args.human_weight)
     if len(y) < 40:
         sys.exit(f"Мало размеченных строк: {len(y)}. Нужно хотя бы 40, лучше 300+.")
-    rng = np.random.default_rng(7)
-    idx = rng.permutation(len(y))
-    folds = np.array_split(idx, 5)
     probs = np.zeros(len(y))
-    for k in range(5):
-        test = folds[k]
-        train = np.concatenate([folds[j] for j in range(5) if j != k])
-        w, b = fit(x[train], y[train])
-        probs[test] = 1 / (1 + np.exp(-(x[test] @ w + b)))
-    acc = float(((probs >= 0.5) == y).mean())
-    brier = float(((probs - y) ** 2).mean())
-    high = probs >= 0.75
-    precision_high = float(y[high].mean()) if high.any() else None
-    metrics = {"cv_accuracy": round(acc, 3), "cv_brier": round(brier, 3), "cv_ece": round(ece(probs, y), 3),
-               "cv_precision_at_0_75": None if precision_high is None else round(precision_high, 3),
-               "share_at_0_75": round(float(high.mean()), 3)}
-    w, b = fit(x, y)
+    for test in group_folds(groups, 5):
+        train = np.setdiff1d(np.arange(len(y)), test)
+        coef, b = fit(x[train], y[train], w[train])
+        probs[test] = 1 / (1 + np.exp(-(x[test] @ coef + b)))
+    high_t = pick_threshold(probs, y, args.target_precision)
+    medium_t = round(min(0.5, high_t - 0.15), 2)
+    high = probs >= high_t
+    medium = (probs >= medium_t) & ~high
+    metrics = {
+        "cv": "5 фолдов по вузам",
+        "cv_accuracy": round(float(((probs >= 0.5) == y).mean()), 3),
+        "cv_brier": round(float(((probs - y) ** 2).mean()), 3),
+        "cv_ece": round(ece(probs, y), 3),
+        "cv_precision_high": round(float(y[high].mean()), 3) if high.any() else None,
+        "cv_share_high": round(float(high.mean()), 3),
+        "cv_precision_medium": round(float(y[medium].mean()), 3) if medium.any() else None,
+        "cv_recall_high": round(float((high & (y == 1)).sum() / max((y == 1).sum(), 1)), 3),
+        "positives": int(y.sum()), "negatives": int(len(y) - y.sum()), "universities": int(len(set(groups.tolist()))),
+    }
+    coef, b = fit(x, y, w)
     current = json.loads(OUT.read_text(encoding="utf-8"))
+    kinds = ", ".join(f"{k}: {v}" for k, v in stats.items())
     current.update({
         "trained": True,
-        "note": f"Обучено на {len(y)} размеченных фото, 5-кратная кросс-валидация.",
+        "note": f"Обучено на {len(y)} примерах ({kinds}) по {metrics['universities']} вузам, кросс-валидация по вузам. "
+                "Слабая разметка: категории Wikimedia Commons, см. ml/build_calibrator_data.py.",
+        "trained_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "samples": int(len(y)),
         "metrics": metrics,
         "bias": round(float(b), 4),
-        "weights": {k: round(float(v), 4) for k, v in zip(FEATURES, w)},
+        "weights": {k: round(float(v), 4) for k, v in zip(FEATURES, coef)},
+        "thresholds": {"high": high_t, "medium": medium_t},
     })
     OUT.write_text(json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps(metrics, ensure_ascii=False, indent=2))
+    print(json.dumps({"metrics": metrics, "weights": current["weights"], "bias": current["bias"], "thresholds": current["thresholds"]}, ensure_ascii=False, indent=2))
     print(f"веса записаны в {OUT}")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        sys.exit(__doc__)
-    main(sys.argv[1:])
+    main()

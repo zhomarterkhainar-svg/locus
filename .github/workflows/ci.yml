@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: "Установка лёгких зависимостей (без torch, тесты не грузят модели)"
+        run: |
+          grep -vE "open_clip_torch|ultralytics" backend/requirements.txt > /tmp/req.txt
+          pip install -r /tmp/req.txt pytest pytest-asyncio respx scikit-learn
+      - name: Тесты
+        working-directory: backend
+        run: pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Сборка
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build

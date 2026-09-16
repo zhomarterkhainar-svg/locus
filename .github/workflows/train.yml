@@ -1,0 +1,120 @@
+name: Train models
+
+# Обучение на открытых данных: головы классификатора (Commons + Places365), калибратор достоверности
+# (слабая разметка по категориям Commons), бенчмарк скорости. Результаты коммитятся в main,
+# затем, если настроены секреты, проект выкладывается на Hugging Face Space.
+on:
+  workflow_dispatch:
+    inputs:
+      stages:
+        description: "Этапы через запятую: heads, calibrator, benchmark"
+        default: "heads,calibrator,benchmark"
+  push:
+    branches: [main]
+    paths:
+      - "ml/dataset_spec.json"
+      - "ml/build_dataset.py"
+      - "ml/train_heads.py"
+      - "ml/build_calibrator_data.py"
+      - "ml/train_calibrator.py"
+      - "ml/labels/**"
+      - ".github/workflows/train.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: train
+  cancel-in-progress: false
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      STAGES: ${{ inputs.stages || 'heads,calibrator,benchmark' }}
+      CONTACT: https://github.com/${{ github.repository }}
+      TORCH_THREADS: "4"
+      PREWARM: "false"
+      CACHE_DIR: ${{ github.workspace }}/data/cache
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE: ${{ vars.HF_SPACE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Зависимости
+        run: |
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install -r backend/requirements.txt scikit-learn
+      - name: Кэш моделей
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: models-${{ hashFiles('scripts/download_models.py') }}
+      - name: Модели
+        run: python scripts/download_models.py
+      - name: Кэш данных
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/images
+            data/places
+            data/cache
+            data/emb_*
+          key: data-${{ hashFiles('ml/dataset_spec.json') }}-${{ github.run_id }}
+          restore-keys: data-${{ hashFiles('ml/dataset_spec.json') }}-
+      - name: Независимый ручной набор
+        run: python ml/fetch_eval_images.py || echo "часть проверочных фото не скачалась"
+
+      - name: Набор данных (Commons + Places365)
+        if: contains(env.STAGES, 'heads')
+        run: python ml/build_dataset.py
+      - name: Обучение голов
+        if: contains(env.STAGES, 'heads')
+        run: python ml/train_heads.py
+
+      - name: Слабая разметка для калибратора
+        if: contains(env.STAGES, 'calibrator')
+        run: python ml/build_calibrator_data.py
+      - name: Обучение калибратора
+        if: contains(env.STAGES, 'calibrator')
+        run: python ml/train_calibrator.py data/labels/*.jsonl $(ls ml/labels/*.jsonl 2>/dev/null)
+
+      - name: Бенчмарк без кэша
+        if: contains(env.STAGES, 'benchmark')
+        continue-on-error: true
+        run: CACHE_DIR=/tmp/bench-cache python ml/benchmark.py
+
+      - name: Артефакты (манифест данных, разметка, лист проверки)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-${{ github.run_id }}
+          path: |
+            data/manifest.jsonl
+            data/labels/
+            data/benchmark.json
+            data/benchmark_sheet.html
+            ml/REPORT.md
+            ml/BENCHMARK.md
+          if-no-files-found: ignore
+
+      - name: Коммит результатов
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ml/heads ml/calibrator_weights.json
+          git add ml/REPORT.md ml/BENCHMARK.md 2>/dev/null || true
+          if git diff --cached --quiet; then echo "нет изменений"; exit 0; fi
+          git commit -m "ML: обученные головы, калибратор и бенчмарк (CI ${{ github.run_id }})"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Выкладка на Hugging Face
+        if: env.HF_TOKEN != '' && env.HF_SPACE != ''
+        run: bash scripts/deploy_hf.sh

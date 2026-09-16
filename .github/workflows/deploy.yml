@@ -1,0 +1,27 @@
+name: Deploy to Hugging Face
+
+# Нужны секрет HF_TOKEN (токен с правом write) и переменная HF_SPACE вида "username/candid-ai"
+# (Settings → Secrets and variables → Actions). Без них шаг пропускается.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE: ${{ vars.HF_SPACE }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Выкладка
+        if: env.HF_TOKEN != '' && env.HF_SPACE != ''
+        run: bash scripts/deploy_hf.sh
+      - name: Подсказка
+        if: env.HF_TOKEN == '' || env.HF_SPACE == ''
+        run: echo "HF_TOKEN или HF_SPACE не заданы, выкладка пропущена. См. README, раздел «Хостинг»."

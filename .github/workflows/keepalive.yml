@@ -1,0 +1,26 @@
+name: Keep Space awake
+
+# Бесплатный Space на Hugging Face засыпает после 48 часов без посещений.
+# Сайт должен работать до объявления результатов, поэтому раз в 6 часов открываем /api/health.
+# Нужна переменная HF_SPACE_URL, например https://username-candid-ai.hf.space
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    env:
+      URL: ${{ vars.HF_SPACE_URL }}
+    steps:
+      - name: Пинг
+        if: env.URL != ''
+        run: |
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 "$URL/api/health" || true)
+            echo "попытка $i: $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 60
+          done
+          echo "Space не ответил 200"; exit 1
