@@ -91,7 +91,7 @@ def _kind(tags: dict[str, str], own_qid: str) -> tuple[str, str | None] | None:
 
 def build_query(uni: University, lat: float, lon: float, radius: int) -> str:
     return f"""[out:json][timeout:8];
-nwr["wikidata"="{uni.qid}"]->.own;
+nwr(around:3000,{lat},{lon})["wikidata"="{uni.qid}"]->.own;
 .own out geom;
 (
   nwr(around:{radius},{lat},{lon})["amenity"~"^(university|college|library|canteen|dormitory)$"];
@@ -114,9 +114,10 @@ def parse(data: dict[str, Any], uni: University) -> Campus:
             elif el["type"] == "way" and el.get("geometry"):
                 own_ways.append([(g["lat"], g["lon"]) for g in el["geometry"]])
             continue
-        if tags.get("wikidata") == uni.qid and el["type"] == "node":
-            campus.center = (el["lat"], el["lon"])
-            campus.matched_by = "wikidata-tag"
+        if tags.get("wikidata") == uni.qid:
+            if el["type"] == "node":
+                campus.center = (el["lat"], el["lon"])
+                campus.matched_by = "wikidata-tag"
             continue
         kind = _kind(tags, uni.qid)
         if not kind:
