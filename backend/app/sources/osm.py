@@ -221,10 +221,34 @@ async def _race_mirrors(q: str, per_request_timeout: float) -> dict[str, Any]:
     raise SourceError(f"Overpass: {errors[0] if errors else 'нет ответа'}")
 
 
+KEEP_TAGS = {"amenity", "building", "leisure", "sport", "highway", "railway", "public_transport", "shop", "wikidata",
+             "name", "name:ru", "name:kk", "name:en"}
+
+
+def compact(data: dict[str, Any]) -> dict[str, Any]:
+    """Оставляет в ответе Overpass только то, что читает parse(): кэш меньше в разы."""
+    out = []
+    for el in data.get("elements", []):
+        e: dict[str, Any] = {"type": el.get("type"), "id": el.get("id")}
+        for k in ("lat", "lon", "center"):
+            if k in el:
+                e[k] = el[k]
+        tags = {k: v for k, v in el.get("tags", {}).items() if k in KEEP_TAGS}
+        if tags:
+            e["tags"] = tags
+        if "geometry" in el:
+            e["geometry"] = [{"lat": round(g["lat"], 6), "lon": round(g["lon"], 6)} for g in el["geometry"] if g]
+        if "members" in el:
+            e["members"] = [{"role": m.get("role", ""), "geometry": [{"lat": round(g["lat"], 6), "lon": round(g["lon"], 6)} for g in m["geometry"] if g]}
+                            for m in el["members"] if m.get("geometry")]
+        out.append(e)
+    return {"elements": out}
+
+
 async def _load_raw(uni: University) -> dict[str, Any]:
     s = get_settings()
     q = build_query(uni, uni.lat, uni.lon, 1400)
-    data = await _race_mirrors(q, s.osm_background_timeout)
+    data = compact(await _race_mirrors(q, s.osm_background_timeout))
     cache.put("osm", uni.qid, data)
     return data
 
@@ -237,7 +261,7 @@ def _from_raw(data: dict[str, Any], uni: University, age: float | None) -> Campu
 
 
 def cached_campus(uni: University) -> Campus | None:
-    hit = cache.get("osm", uni.qid, get_settings().osm_cache_ttl_s)
+    hit = cache.get("osm", uni.qid, get_settings().osm_cache_ttl_s, seed=True)
     if hit is None:
         return None
     return _from_raw(hit[0], uni, hit[1])

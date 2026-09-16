@@ -158,3 +158,17 @@ def test_bunk_fact():
     assert none["dorm_bunk"].value == "не видно на 2 фото"
     no_info = {f.id for f in dorm_facts([_photo("6", [{"label": "кровать", "conf": 0.8, "x": 0, "y": 0, "w": 1, "h": 1}])], osm.Campus())}
     assert "dorm_bunk" not in no_info
+
+
+def test_compact_keeps_parse_result():
+    full = osm.parse(fx.OVERPASS, enu())
+    small = osm.parse(osm.compact(fx.OVERPASS), enu())
+    assert small.rings == full.rings or len(small.rings) == len(full.rings)
+    assert [o.kind for o in small.objects] == [o.kind for o in full.objects]
+
+
+async def test_seed_cache_used_when_server_cache_empty(tmp_path, monkeypatch):
+    monkeypatch.setattr(get_settings(), "seed_cache_dir", str(tmp_path / "seed"))
+    cache.put("osm", fx.QID, osm.compact(fx.OVERPASS), target=cache.seed_path("osm", fx.QID))
+    campus = await osm.fetch_campus(enu(), wait_s=0.01)
+    assert campus.from_cache and campus.rings

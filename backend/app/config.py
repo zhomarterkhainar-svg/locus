@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     rate_limit_per_min: int = 8
     cache_ttl_s: int = 6 * 3600
     cache_dir: str = "/tmp/candid-cache"
+    seed_cache_dir: str = "backend/seed_cache"  # заранее собранные карты OSM частых вузов (раскрыто в README)
+    seed_cache_ttl_s: int = 120 * 24 * 3600
     osm_cache_ttl_s: int = 7 * 24 * 3600
     context_cache_ttl_s: int = 14 * 24 * 3600
     prewarm: bool = True
@@ -37,7 +39,7 @@ class Settings(BaseSettings):
     resolve_timeout: float = 7.0
     source_timeout: float = 11.0
     osm_timeout: float = 9.0
-    osm_background_timeout: float = 45.0
+    osm_background_timeout: float = 200.0  # публичные зеркала Overpass в часы пик отвечают минутами
     context_timeout: float = 8.0
     download_timeout: float = 6.0
     total_budget: float = 27.0

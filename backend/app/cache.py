@@ -28,10 +28,8 @@ def _path(namespace: str, key: str) -> Path:
     return _dir() / f"{namespace}-{digest}.json"
 
 
-def get(namespace: str, key: str, ttl_s: float) -> tuple[Any, float] | None:
-    """Возвращает (значение, возраст в секундах) или None."""
+def _read(p: Path, ttl_s: float) -> tuple[Any, float] | None:
     try:
-        p = _path(namespace, key)
         raw = json.loads(p.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
@@ -41,9 +39,24 @@ def get(namespace: str, key: str, ttl_s: float) -> tuple[Any, float] | None:
     return raw.get("value"), age
 
 
-def put(namespace: str, key: str, value: Any) -> None:
+def seed_path(namespace: str, key: str) -> Path:
+    s = get_settings()
+    digest = hashlib.sha1(key.encode()).hexdigest()[:20]
+    return s.path(s.seed_cache_dir) / f"{namespace}-{digest}.json"
+
+
+def get(namespace: str, key: str, ttl_s: float, seed: bool = False) -> tuple[Any, float] | None:
+    """Возвращает (значение, возраст в секундах) или None. seed=True разрешает заранее собранный кэш из репозитория."""
+    hit = _read(_path(namespace, key), ttl_s)
+    if hit is None and seed:
+        hit = _read(seed_path(namespace, key), get_settings().seed_cache_ttl_s)
+    return hit
+
+
+def put(namespace: str, key: str, value: Any, target: Path | None = None) -> None:
     try:
-        p = _path(namespace, key)
+        p = target or _path(namespace, key)
+        p.parent.mkdir(parents=True, exist_ok=True)
         tmp = p.with_suffix(f".{os.getpid()}.tmp")
         tmp.write_text(json.dumps({"saved": time.time(), "key": key, "value": value}, ensure_ascii=False), encoding="utf-8")
         tmp.replace(p)

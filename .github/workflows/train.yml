@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
     inputs:
       stages:
-        description: "Этапы через запятую: heads, calibrator, benchmark"
-        default: "heads,calibrator,benchmark"
+        description: "Этапы через запятую: heads, calibrator, osm, benchmark"
+        default: "heads,calibrator,osm,benchmark"
   push:
     branches: [main]
     paths:
@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 240
     env:
-      STAGES: ${{ inputs.stages || 'heads,calibrator,benchmark' }}
+      STAGES: ${{ inputs.stages || 'heads,calibrator,osm,benchmark' }}
       CONTACT: https://github.com/${{ github.repository }}
       TORCH_THREADS: "4"
       PREWARM: "false"
@@ -85,10 +85,16 @@ jobs:
         if: contains(env.STAGES, 'calibrator')
         run: python ml/train_calibrator.py data/labels/*.jsonl $(ls ml/labels/*.jsonl 2>/dev/null)
 
+      - name: Кэш карт OSM частых вузов
+        if: contains(env.STAGES, 'osm')
+        continue-on-error: true
+        timeout-minutes: 90
+        run: python ml/seed_osm_cache.py
+
       - name: Бенчмарк без кэша
         if: contains(env.STAGES, 'benchmark')
         continue-on-error: true
-        run: CACHE_DIR=/tmp/bench-cache python ml/benchmark.py
+        run: CACHE_DIR=/tmp/bench-cache SEED_CACHE_DIR=/nonexistent python ml/benchmark.py
 
       - name: Артефакты (манифест данных, разметка, лист проверки)
         if: always()
@@ -108,7 +114,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ml/heads ml/calibrator_weights.json
+          git add ml/heads ml/calibrator_weights.json backend/seed_cache
           git add ml/REPORT.md ml/BENCHMARK.md 2>/dev/null || true
           if git diff --cached --quiet; then echo "нет изменений"; exit 0; fi
           git commit -m "ML: обученные головы, калибратор и бенчмарк (CI ${{ github.run_id }})"
