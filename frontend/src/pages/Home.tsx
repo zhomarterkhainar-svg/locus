@@ -63,6 +63,10 @@ export function Home() {
               </ul>
             </div>
             <SearchOutcome result={result} loading={loading} onSuggestion={run} />
+            <p className="home__compare">
+              Выбираете из двух?{" "}
+              <Link to="/compare?a=Q127745&b=Q1972870">Сравните вузы по фактам с фото-доказательствами</Link>
+            </p>
           </div>
           <CardAnatomy />
         </section>
@@ -88,7 +92,7 @@ export function Home() {
             </li>
             <li>
               <b>Читаем фото</b>
-              <span>детектор считает кровати в комнатах общежитий, фото спортобъектов сверяются с картой.</span>
+              <span>детектор считает кровати и отличает двухъярусные, фото спортобъектов сверяются с картой, рядом климат и путь до корпуса.</span>
             </li>
           </ol>
           <p className="method-strip__more">

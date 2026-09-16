@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { shortDate } from "../lib/format";
+import { isOld, shortDate } from "../lib/format";
 
 const SHORT_SOURCE: Record<string, string> = { commons: "Commons", official: "Сайт вуза", flickr: "Flickr", wikipedia: "Википедия" };
 import type { Box, PhotoView } from "../lib/types";
@@ -12,7 +12,14 @@ export function Boxes({ boxes }: { boxes: Box[] }) {
       {boxes.map((b, i) => (
         <g key={i}>
           <rect x={b.x * 100} y={b.y * 100} width={b.w * 100} height={b.h * 100} className="boxes__outline" vectorEffect="non-scaling-stroke" />
-          <rect x={b.x * 100} y={b.y * 100} width={b.w * 100} height={b.h * 100} className="boxes__rect" vectorEffect="non-scaling-stroke" />
+          <rect
+            x={b.x * 100}
+            y={b.y * 100}
+            width={b.w * 100}
+            height={b.h * 100}
+            className={`boxes__rect${(b.bunk ?? 0) >= 0.6 ? " boxes__rect--bunk" : ""}`}
+            vectorEffect="non-scaling-stroke"
+          />
         </g>
       ))}
     </svg>
@@ -51,6 +58,7 @@ export function CatalogCard({ photo, onOpen, highlightBoxes }: Props) {
           <p className="ccard__meta field">
             {SHORT_SOURCE[photo.source] ?? photo.source}
             {year ? ` · ${shortDate(year)}` : ""}
+            {isOld(photo.taken, photo.published) ? <span className="ccard__old"> · старше 5 лет</span> : null}
           </p>
           {photo.duplicates.length ? <p className="ccard__dups field">+{photo.duplicates.length} копии склеены</p> : null}
         </div>

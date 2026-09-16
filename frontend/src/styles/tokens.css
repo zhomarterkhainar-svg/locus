@@ -22,6 +22,10 @@
   --pencil-wash: #f3e1db;
   --medium: #574a0e;
 
+  /* Данные: климат (пара проверена валидатором палитр, светлая поверхность) */
+  --cold: #4a67c9;
+  --warm: #c9432b;
+
   --font-ui: "Golos Text", "PT Sans", system-ui, sans-serif;
   --font-field: "PT Mono", ui-monospace, "Cascadia Mono", monospace;
 

@@ -65,3 +65,30 @@ export function shortDate(value: string | null | undefined): string {
   if (!m) return value;
   return m[2] ? `${m[3]}.${m[2]}.${m[1]}` : m[1];
 }
+
+export function minutes(sec: number): string {
+  const m = Math.max(1, Math.round(sec / 60));
+  if (m < 60) return `${m} мин`;
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return r ? `${h} ч ${r} мин` : `${h} ч`;
+}
+
+export function temp(t: number | null | undefined): string {
+  if (t == null) return "";
+  const v = Math.round(t);
+  return `${v < 0 ? "−" : v > 0 ? "+" : ""}${Math.abs(v)} °C`;
+}
+
+/** Фото старше пяти лет по дате съёмки или публикации. */
+export function isOld(taken: string | null, published: string | null, years = 5): boolean {
+  const d = taken || published;
+  if (!d) return false;
+  const y = Number(d.slice(0, 4));
+  return Number.isFinite(y) && new Date().getFullYear() - y > years;
+}
+
+/** Крупная миниатюра Wikimedia для карточки: стандартные ширины 500 и 960 px. */
+export function largeThumb(url: string): string {
+  return /\/\/(upload|thumb)\.wikimedia\.org\//.test(url) ? url.replace(/\/500px-/, "/960px-") : url;
+}

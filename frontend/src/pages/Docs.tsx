@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Footer, TopBar } from "../components/Chrome";
 
@@ -78,10 +78,15 @@ export function Privacy() {
       </p>
       <h2>Внешние сервисы</h2>
       <p>
-        Чтобы собрать профиль, сервер обращается к Wikidata, Wikimedia Commons, OpenStreetMap, Википедии, сайту выбранного вуза и, если
-        подключено, к Flickr. Тексты об университете из открытых источников могут отправляться в Google Gemini для составления описания. Ваши
+        Чтобы собрать профиль, сервер обращается к Wikidata, Wikimedia Commons, OpenStreetMap (Overpass и маршрутизатор OSRM), Open-Meteo,
+        Википедии, сайту выбранного вуза и, если подключено, к Flickr. Подложку карты браузер загружает с серверов CARTO. Тексты об университете из открытых источников могут отправляться в Google Gemini для составления описания. Ваши
         персональные данные в эти запросы не передаются. Когда браузер показывает превью фото, он загружает его напрямую с сайта источника, и
         этот сайт видит ваш IP-адрес по своим правилам.
+      </p>
+      <h2>Отметки об ошибках</h2>
+      <p>
+        Кнопки «Это не тот вуз», «Не тот раздел» и «Всё верно» в карточке фото сохраняют идентификатор вуза и фото, вид отметки и время.
+        IP-адрес и другие сведения о человеке к отметке не прикладываются. Отметки используются для дообучения модели достоверности.
       </p>
       <h2>Связь</h2>
       <p>Вопросы о данных можно задать команде через репозиторий проекта.</p>
@@ -108,16 +113,32 @@ export function Method() {
       </p>
       <h2>Модели</h2>
       <p>
-        Раздел фото определяет OpenCLIP ViT-B/32 (LAION-400M) по набору текстовых описаний раздела. Он же отсеивает логотипы, афиши, карты,
-        марки и портреты. Дубликаты ищутся по перцептивному хэшу и близости эмбеддингов. Кровати, столы и технику на фото общежитий находит
-        Ultralytics YOLO11s, обученный на COCO. Описание кампуса пишет Gemini строго по найденным текстам, затем каждое предложение проверяется
-        на наличие источника и совпадение чисел.
+        Раздел фото определяет OpenCLIP ViT-B/32 (LAION-400M). Поверх его эмбеддингов работают линейные головы, обученные на открытых
+        размеченных фото: тематические категории Wikimedia Commons и сцены Places365. Итог смешивается с zero-shot классификацией по
+        текстовым описаниям раздела, вес смеси подобран на отложенной выборке. Те же модели отсеивают логотипы, афиши, карты, марки и
+        портреты. Дубликаты ищутся по перцептивному хэшу и близости эмбеддингов. Кровати, столы и технику на фото общежитий находит
+        Ultralytics YOLO11s (COCO), затем каждая найденная кровать отдельно классифицируется как двухъярусная или обычная. Описание кампуса
+        пишет Gemini строго по найденным текстам, затем каждое предложение проверяется на наличие источника и совпадение чисел. Поиск внутри
+        профиля сравнивает текст запроса с содержанием кадров той же моделью CLIP.
+      </p>
+      <ModelStatus />
+      <h2>Город и дорога</h2>
+      <p>
+        Климат считается по архиву Open-Meteo (реанализ ERA5) за последние пять полных лет. Время в пути от центра города и пешком от
+        общежитий до главного корпуса считает маршрутизатор OSRM на данных OpenStreetMap. Остановки, магазины и аптеки рядом тоже из
+        OpenStreetMap. Открытых данных о стоимости жизни с понятной датой нет, поэтому сервис это прямо пишет.
+      </p>
+      <h2>Кэш</h2>
+      <p>
+        Готовые профили хранятся шесть часов, граница кампуса из OpenStreetMap неделю, климат и маршруты две недели. Профиль из кэша
+        помечен, кнопка «Пересобрать без кэша» запускает сборку заново. Фото в кэш не попадают.
       </p>
       <h2>Ограничения</h2>
       <p>
         Сервис видит только открытые источники, поэтому у небольших вузов фото может быть мало. Раздел «мало данных» означает нехватку
-        снимков, а не отсутствие объекта. Детектор может принять двухъярусную кровать за одну. Веса модели достоверности в текущей версии заданы
-        вручную и будут заменены обученными на размеченных фото. Лучше всего сервис работает для вузов, у которых есть страница в Wikidata с
+        снимков, а не отсутствие объекта. Классификатор двухъярусных кроватей ошибается на ракурсах сверху и при плохом свете. Обучающие метки
+        Commons шумные: категория описывает тему файла, а не всегда содержание кадра. Модель достоверности обучена на слабой разметке по
+        структуре категорий Commons и отметкам пользователей. Лучше всего сервис работает для вузов, у которых есть страница в Wikidata с
         координатами, сайтом и категорией на Commons.
       </p>
     </DocPage>
@@ -131,5 +152,79 @@ export function NotFound() {
         Такой страницы нет. <Link to="/">Вернитесь к поиску вуза</Link>.
       </p>
     </DocPage>
+  );
+}
+
+type Health = {
+  calibrator?: { trained: boolean; note: string; samples?: number; metrics?: Record<string, number | string | null> | null };
+  heads?: {
+    trained: boolean;
+    note?: string;
+    model?: string;
+    trained_at?: string;
+    dataset?: { rows: number; by_source: Record<string, number> };
+    heads?: Record<string, { alpha: number; metrics: { zero_shot: { accuracy: number; macro_f1: number }; blend: { accuracy: number; macro_f1: number }; n_test: number } }>;
+  };
+};
+
+const HEAD_NAMES: Record<string, string> = {
+  category: "Разделы и мусор",
+  dorm_sub: "Помещения общежития",
+  sport_sub: "Виды спортобъектов",
+  bunk: "Двухъярусная кровать",
+};
+
+function pct(v: number | undefined) {
+  return v == null ? "—" : `${Math.round(v * 1000) / 10}%`.replace(".", ",");
+}
+
+function ModelStatus() {
+  const [h, setH] = useState<Health | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    fetch("/api/health")
+      .then((r) => r.json())
+      .then(setH)
+      .catch(() => setFailed(true));
+  }, []);
+  if (failed) return <p className="panel-note">Не удалось получить состояние моделей.</p>;
+  if (!h) return <p className="panel-note">Загружаем состояние моделей…</p>;
+  const heads = h.heads;
+  const cal = h.calibrator;
+  return (
+    <div className="doc__models">
+      {heads?.trained && heads.heads ? (
+        <>
+          <p>
+            Головы обучены {heads.trained_at ? new Date(heads.trained_at).toLocaleDateString("ru-RU") : ""} на{" "}
+            {heads.dataset?.rows ?? "?"} фото ({Object.entries(heads.dataset?.by_source ?? {}).map(([k, v]) => `${k}: ${v}`).join(", ")}). Точность на
+            отложенной выборке:
+          </p>
+          <table className="signals">
+            <thead>
+              <tr><th>Голова</th><th className="num">Zero-shot</th><th className="num">С обучением</th><th className="num">Тест, фото</th></tr>
+            </thead>
+            <tbody>
+              {Object.entries(heads.heads).map(([k, v]) => (
+                <tr key={k}>
+                  <th scope="row">{HEAD_NAMES[k] ?? k}</th>
+                  <td className="num">{pct(v.metrics.zero_shot.accuracy)}</td>
+                  <td className="num">{pct(v.metrics.blend.accuracy)}</td>
+                  <td className="num">{v.metrics.n_test}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      ) : (
+        <p className="panel-note">{heads?.note ?? "Обученных голов нет, классификация zero-shot."}</p>
+      )}
+      <p className="panel-note">
+        Модель достоверности: {cal?.trained ? cal.note : "веса заданы вручную, обучение запускается в GitHub Actions."}
+        {cal?.trained && cal.metrics
+          ? ` Кросс-валидация по вузам: точность ${pct(cal.metrics.cv_accuracy as number)}, среди подтверждённых верно ${pct(cal.metrics.cv_precision_high as number)}.`
+          : ""}
+      </p>
+    </div>
   );
 }

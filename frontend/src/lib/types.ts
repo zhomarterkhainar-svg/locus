@@ -46,7 +46,7 @@ export type SignalView = {
   detail: string;
 };
 
-export type Box = { label: string; conf: number; x: number; y: number; w: number; h: number };
+export type Box = { label: string; conf: number; x: number; y: number; w: number; h: number; bunk?: number };
 
 export type PhotoView = {
   id: string;
@@ -111,7 +111,10 @@ export type CampusView = {
   center: [number, number] | null;
   radius_m: number;
   matched_by: string;
+  from_cache?: boolean;
+  late?: boolean;
   objects: OsmObjectView[];
+  amenities?: OsmObjectView[];
   university: { lat: number | null; lon: number | null } | null;
   city: Place | null;
 };
@@ -156,3 +159,54 @@ export type Counters = {
 
 export type StageKey = "resolve" | "sources" | "analyze" | "facts" | "describe";
 export type StageStatus = "idle" | "running" | "done" | "error";
+
+export type ClimateMonth = {
+  month: number;
+  label: string;
+  t_mean: number;
+  t_min: number | null;
+  t_max: number | null;
+  precip_mm: number | null;
+  snow_days: number | null;
+};
+
+export type RouteView = {
+  key: string;
+  mode: "foot" | "car";
+  label: string;
+  from: { name: string; lat: number; lon: number; osm_url?: string };
+  to: { name: string; lat: number; lon: number };
+  distance_m: number;
+  duration_s: number;
+  straight_m: number;
+  line: [number, number][];
+  source_url: string;
+};
+
+export type ContextView = {
+  climate: {
+    months: ClimateMonth[];
+    years: string;
+    coldest: ClimateMonth;
+    warmest: ClimateMonth;
+    source: string;
+    url: string;
+    from_cache: boolean;
+  } | null;
+  climate_error?: string;
+  routes: RouteView[];
+  amenities: { radius_m: number; counts: Record<"transport" | "shop" | "pharmacy", number>; nearest_m: Record<string, number>; note?: string } | null;
+  winter_walk?: { minutes: number; month: string; t_mean: number };
+  cost?: { status: string; note: string };
+  main_point?: { lat: number; lon: number };
+  error?: string;
+};
+
+export type FindResult = {
+  query: string;
+  english: string | null;
+  via?: string;
+  results: { id: string; score: number }[];
+  message?: string;
+  error?: string;
+};

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { date, distance, LEVEL_WORD, percent, SOURCE_NAMES } from "../lib/format";
+import { sendFeedback, type FeedbackKind } from "../lib/api";
+import { date, distance, isOld, largeThumb, LEVEL_WORD, percent, SOURCE_NAMES } from "../lib/format";
 import type { PhotoView } from "../lib/types";
 import { Boxes } from "./CatalogCard";
 import { Icon } from "./Icon";
@@ -16,11 +17,25 @@ type Props = {
   onStep: (dir: -1 | 1) => void;
   position: string;
   calibratorTrained: boolean | null;
+  qid?: string;
 };
 
-export function PhotoDialog({ photo, onClose, onStep, position, calibratorTrained }: Props) {
+export function PhotoDialog({ photo, onClose, onStep, position, calibratorTrained, qid }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const [showBoxes, setShowBoxes] = useState(true);
+  const [sent, setSent] = useState<Record<string, string>>({});
+  const [imgSrc, setImgSrc] = useState<string>("");
+
+  useEffect(() => {
+    if (photo) setImgSrc(largeThumb(photo.image_url));
+  }, [photo]);
+
+  async function mark(kind: FeedbackKind) {
+    if (!photo || !qid) return;
+    setSent((s) => ({ ...s, [photo.id]: "отправляем…" }));
+    const res = await sendFeedback(qid, photo.id, kind, photo.category);
+    setSent((s) => ({ ...s, [photo.id]: res.message }));
+  }
 
   useEffect(() => {
     const d = ref.current;
@@ -54,13 +69,18 @@ export function PhotoDialog({ photo, onClose, onStep, position, calibratorTraine
           <div className="record__grid">
             <div className="record__media">
               <div className="record__photo">
-                <img src={photo.image_url} alt={photo.title} referrerPolicy="no-referrer" />
+                <img
+                  src={imgSrc || photo.image_url}
+                  alt={photo.title}
+                  referrerPolicy="no-referrer"
+                  onError={() => imgSrc !== photo.image_url && setImgSrc(photo.image_url)}
+                />
                 {showBoxes ? <Boxes boxes={photo.boxes} /> : null}
               </div>
               {photo.boxes.length ? (
                 <label className="record__toggle">
                   <input type="checkbox" checked={showBoxes} onChange={(e) => setShowBoxes(e.target.checked)} />
-                  Рамки детектора ({photo.boxes.map((b) => b.label).filter((v, i, a) => a.indexOf(v) === i).join(", ")})
+                  Рамки детектора ({photo.boxes.map((b) => ((b.bunk ?? 0) >= 0.6 ? "двухъярусная кровать" : b.label)).filter((v, i, a) => a.indexOf(v) === i).join(", ")})
                 </label>
               ) : null}
             </div>
@@ -85,7 +105,13 @@ export function PhotoDialog({ photo, onClose, onStep, position, calibratorTraine
                   <dt>Лицензия</dt>
                   <dd>{photo.license ? (photo.license_url ? <a href={photo.license_url} target="_blank" rel="noreferrer">{photo.license}</a> : photo.license) : "не указана"}</dd>
                 </div>
-                <div><dt>Снято</dt><dd>{date(photo.taken) || "дата неизвестна"}</dd></div>
+                <div>
+                  <dt>Снято</dt>
+                  <dd>
+                    {date(photo.taken) || "дата неизвестна"}
+                    {isOld(photo.taken, photo.published) ? <span className="record__old">, фото старше 5 лет: кампус мог измениться</span> : null}
+                  </dd>
+                </div>
                 <div><dt>Опубликовано</dt><dd>{date(photo.published) || "дата неизвестна"}</dd></div>
                 <div><dt>Получено</dt><dd>{date(photo.retrieved.slice(0, 10))}</dd></div>
                 <div>
@@ -126,12 +152,34 @@ export function PhotoDialog({ photo, onClose, onStep, position, calibratorTraine
                 </table>
                 <p className="panel-note">
                   Итог {percent(photo.confidence)} ({LEVEL_WORD[photo.level]}): логистическая модель складывает вклады сигналов.
-                  {calibratorTrained === false ? " Веса пока заданы вручную и будут заменены обученными на размеченных фото." : ""}
+                  {calibratorTrained === false
+                    ? " Веса пока заданы вручную и будут заменены обученными на размеченных фото."
+                    : calibratorTrained
+                      ? " Веса обучены на открытых размеченных данных, метрики на странице «Как это работает»."
+                      : ""}
                 </p>
                 <p className="panel-note">
                   Раздел: {photo.category_scores.map((c) => `${CATEGORY_RU[c.key] ?? c.key} ${percent(c.p)}`).join(", ")}
                 </p>
               </section>
+
+              {qid ? (
+                <section className="record__feedback" aria-label="Отметить ошибку">
+                  <h3>Что-то не так?</h3>
+                  <div className="record__feedback-row">
+                    <button type="button" className="btn btn--ghost btn--small" onClick={() => mark("wrong_university")} disabled={Boolean(sent[photo.id])}>
+                      <Icon name="flag" size={14} /> Это не тот вуз
+                    </button>
+                    <button type="button" className="btn btn--ghost btn--small" onClick={() => mark("wrong_category")} disabled={Boolean(sent[photo.id])}>
+                      Не тот раздел
+                    </button>
+                    <button type="button" className="btn btn--ghost btn--small" onClick={() => mark("correct")} disabled={Boolean(sent[photo.id])}>
+                      Всё верно
+                    </button>
+                  </div>
+                  <p className="panel-note" role="status">{sent[photo.id] ?? "Отметки копятся и используются при дообучении модели достоверности."}</p>
+                </section>
+              ) : null}
 
               {photo.duplicates.length ? (
                 <section className="record__dups">

@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef } from "react";
 import type {
-  Box, CampusView, Counters, DescriptionView, FactView, PhotoView, RejectedView, SourceStatus, StageKey, StageStatus, University,
+  Box, CampusView, ContextView, Counters, DescriptionView, FactView, PhotoView, RejectedView, SourceStatus, StageKey, StageStatus, University,
 } from "./types";
 
 export type ProfileState = {
@@ -9,6 +9,7 @@ export type ProfileState = {
   cachedAt: number | null;
   university: University | null;
   campus: CampusView | null;
+  context: ContextView | null;
   stages: Record<StageKey, StageStatus>;
   sources: Record<string, SourceStatus>;
   photos: Record<string, PhotoView>;
@@ -32,6 +33,7 @@ const initial: ProfileState = {
   cachedAt: null,
   university: null,
   campus: null,
+  context: null,
   stages: { resolve: "idle", sources: "idle", analyze: "idle", facts: "idle", describe: "idle" },
   sources: {},
   photos: {},
@@ -71,7 +73,13 @@ function reducer(state: ProfileState, action: Action): ProfileState {
     case "university":
       return { ...s, university: data };
     case "campus":
-      return { ...s, campus: data };
+      return {
+        ...s,
+        campus: data,
+        notices: data.late ? [...s.notices, "Граница кампуса из OpenStreetMap догрузилась позже фото: карта обновлена, проверка фото шла по точке Wikidata."] : s.notices,
+      };
+    case "context":
+      return { ...s, context: data };
     case "source":
       return { ...s, sources: { ...s.sources, [data.key]: data } };
     case "photos": {
@@ -121,7 +129,7 @@ function reducer(state: ProfileState, action: Action): ProfileState {
   }
 }
 
-const EVENTS = ["meta", "stage", "university", "campus", "source", "photos", "photo_update", "boxes", "rejected", "progress", "facts", "description", "notice", "error", "done"];
+const EVENTS = ["meta", "stage", "university", "campus", "context", "source", "photos", "photo_update", "boxes", "rejected", "progress", "facts", "description", "notice", "error", "done"];
 
 export function useProfileStream(qid: string, nonce: number, fresh: boolean) {
   const [state, dispatch] = useReducer(reducer, initial);
@@ -129,6 +137,7 @@ export function useProfileStream(qid: string, nonce: number, fresh: boolean) {
 
   useEffect(() => {
     dispatch({ type: "reset" });
+    if (!qid) return;
     const url = `/api/profile/${encodeURIComponent(qid)}/stream${fresh ? "?fresh=1" : ""}`;
     const es = new EventSource(url);
     esRef.current = es;

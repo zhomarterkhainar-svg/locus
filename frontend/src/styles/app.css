@@ -1473,6 +1473,419 @@ a.cand:hover {
 }
 
 /* ---------- Адаптив ---------- */
+/* ---------- Карта с подложкой ---------- */
+.plan__tile {
+  opacity: 0.82;
+}
+.plan__campus--approx {
+  fill-opacity: 0.55;
+  stroke-dasharray: 3 3;
+}
+.plan__campus {
+  fill-opacity: 0.6;
+}
+.plan__route {
+  fill: none;
+  stroke: var(--stamp);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  stroke-dasharray: 1 4;
+}
+.plan__stop {
+  fill: var(--card);
+  stroke: var(--ink-2);
+  stroke-width: 1.2;
+}
+.plan__pin.is-clickable {
+  cursor: pointer;
+}
+.plan__pin.is-clickable:hover {
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.plan__scale-bg {
+  fill: var(--card);
+  fill-opacity: 0.85;
+}
+.lg--route {
+  height: 0;
+  border-top: 2px dotted var(--stamp);
+}
+.lg--stop {
+  border-radius: 50%;
+  border: 1.2px solid var(--ink-2);
+  background: var(--card);
+  width: 7px;
+  height: 7px;
+}
+.plan__credit {
+  margin-left: auto;
+  font-size: var(--fs-11);
+}
+.plan__credit a {
+  color: var(--ink-3);
+}
+
+/* ---------- Город и дорога ---------- */
+.city {
+  display: grid;
+  gap: var(--s-2);
+  align-content: start;
+}
+.routes {
+  list-style: none;
+  margin: var(--s-2) 0 0;
+  padding: 0;
+}
+.route {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: var(--s-1) var(--s-2);
+  align-items: baseline;
+  padding: var(--s-2) 0;
+  border-bottom: var(--hair-soft);
+  font-size: var(--fs-14);
+}
+.route svg {
+  align-self: center;
+  color: var(--ink-2);
+}
+.route__value {
+  display: grid;
+  justify-items: end;
+  font-family: var(--font-field);
+  font-size: var(--fs-13);
+  white-space: nowrap;
+}
+.route__dist {
+  color: var(--ink-3);
+  font-size: var(--fs-12);
+}
+.city__winter {
+  font-size: var(--fs-14);
+  padding: var(--s-2) var(--s-3);
+  background: var(--card);
+  border: var(--hair);
+  border-radius: var(--radius);
+}
+.city__near {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-1) var(--s-3);
+  margin: var(--s-2) 0 0;
+}
+.city__near div {
+  display: grid;
+}
+.city__near dt {
+  font-size: var(--fs-12);
+  color: var(--ink-3);
+  order: 2;
+}
+.city__near dd {
+  margin: 0;
+  font-family: var(--font-field);
+  font-size: var(--fs-23);
+  line-height: 1.1;
+}
+.city__near .panel-note {
+  grid-column: 1 / -1;
+}
+.city__sub {
+  margin-top: var(--s-4);
+  font-size: var(--fs-16);
+  padding-bottom: var(--s-1);
+  border-bottom: 1.5px solid var(--ink);
+}
+
+.climate {
+  margin: var(--s-2) 0 0;
+}
+.climate svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+.climate__grid {
+  stroke: var(--rule-soft);
+  stroke-width: 1;
+}
+.climate__zero {
+  stroke: var(--ink-2);
+  stroke-width: 1;
+}
+.climate__tick {
+  font-family: var(--font-field);
+  font-size: 9px;
+  fill: var(--ink-3);
+}
+.climate__hit {
+  fill: transparent;
+}
+.climate__m {
+  cursor: default;
+  outline: none;
+}
+.climate__m.is-hover .climate__hit,
+.climate__m:focus-visible .climate__hit {
+  fill: var(--paper-deep);
+}
+.climate__bar--cold {
+  fill: var(--cold);
+}
+.climate__bar--warm {
+  fill: var(--warm);
+}
+.climate__mean {
+  stroke: var(--card);
+  stroke-width: 2;
+}
+.climate__readout {
+  min-height: 2.8em;
+  margin-top: var(--s-1);
+  font-size: var(--fs-12);
+  color: var(--ink-2);
+}
+
+/* ---------- Фонд: поиск по фото и фильтры ---------- */
+.fonds__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
+  margin-bottom: var(--s-3);
+}
+.find {
+  display: flex;
+  flex: 1 1 320px;
+  gap: var(--s-2);
+}
+.find input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 var(--s-3);
+  border: var(--hair);
+  border-radius: var(--radius);
+  background: var(--card);
+  font: inherit;
+  font-size: var(--fs-14);
+  color: var(--ink);
+}
+.find input:focus {
+  outline: 2px solid var(--stamp);
+  outline-offset: -1px;
+}
+.find input::placeholder {
+  color: var(--ink-3);
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 var(--s-3);
+  border: var(--hair);
+  border-radius: var(--radius);
+  background: var(--card);
+  font-size: var(--fs-13);
+  cursor: pointer;
+  user-select: none;
+}
+.chip:has(input:checked) {
+  border-color: var(--stamp);
+  background: var(--stamp-wash);
+  color: var(--stamp-deep);
+}
+.chip input {
+  accent-color: var(--stamp);
+  margin: 0;
+}
+.find__status {
+  flex-basis: 100%;
+  font-size: var(--fs-13);
+  color: var(--ink-2);
+}
+.ccard__old {
+  color: var(--medium);
+}
+.boxes__rect--bunk {
+  stroke: var(--stamp);
+  stroke-width: 2.5;
+}
+.record__old {
+  color: var(--medium);
+}
+.record__feedback {
+  display: grid;
+  gap: var(--s-2);
+  padding-top: var(--s-3);
+  border-top: var(--hair-soft);
+}
+.record__feedback h3 {
+  font-size: var(--fs-16);
+}
+.record__feedback-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.label-block__compare {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.compare-pick {
+  margin-top: var(--s-3);
+  max-width: 460px;
+}
+
+.home__compare {
+  margin-top: var(--s-4);
+  font-size: var(--fs-14);
+  color: var(--ink-2);
+}
+.doc__models {
+  display: grid;
+  gap: var(--s-2);
+  margin: var(--s-3) 0;
+}
+
+/* ---------- Сравнение ---------- */
+.compare {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: var(--s-6) var(--s-5) 0;
+}
+.compare__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding-bottom: var(--s-4);
+  border-bottom: 1.5px solid var(--ink);
+}
+.compare__head h1 {
+  font-size: var(--fs-34);
+  letter-spacing: -0.02em;
+}
+.compare__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  align-items: center;
+}
+.ctable {
+  margin-top: var(--s-4);
+}
+.ctable__row {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.8fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s-4);
+  padding: var(--s-2) 0;
+  border-bottom: var(--hair-soft);
+  align-items: start;
+}
+.ctable__row--head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--paper);
+  border-bottom: var(--hair);
+  padding: var(--s-3) 0;
+}
+.ctable__uni {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+}
+.ctable__name {
+  font-weight: 600;
+  font-size: var(--fs-19);
+  line-height: 1.25;
+  color: var(--ink);
+}
+.ctable__time {
+  font-size: var(--fs-12);
+  color: var(--ink-3);
+}
+.ctable__swap {
+  margin-top: var(--s-2);
+}
+.ctable__section {
+  padding: var(--s-5) 0 var(--s-1);
+  font-weight: 600;
+  border-bottom: 1.5px solid var(--ink);
+}
+.ctable__label {
+  font-size: var(--fs-14);
+  color: var(--ink-2);
+  display: grid;
+  gap: 2px;
+}
+.ctable__diff {
+  font-size: var(--fs-11);
+  color: var(--stamp);
+  font-family: var(--font-field);
+}
+.ctable__row.is-diff .ctable__label {
+  color: var(--ink);
+  font-weight: 500;
+}
+.ctable__cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-14);
+}
+.ctable__cell.is-muted .ctable__value {
+  color: var(--ink-3);
+}
+.ctable__ev {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px;
+  border: var(--hair);
+  border-radius: var(--radius);
+  background: var(--card);
+  cursor: pointer;
+  font-size: var(--fs-11);
+  color: var(--ink-2);
+}
+.ctable__ev:hover {
+  border-color: var(--ink);
+}
+.ctable__ev img {
+  width: 48px;
+  height: 36px;
+  object-fit: cover;
+  display: block;
+}
+.ctable__ev span {
+  padding-right: 4px;
+}
+.compare__note {
+  margin: var(--s-5) 0 var(--s-6);
+  max-width: 70ch;
+}
+
 @media (max-width: 1100px) {
   .home__entry {
     grid-template-columns: minmax(0, 1fr);
@@ -1603,5 +2016,27 @@ a.cand:hover {
   .rejects th:nth-child(3),
   .rejects td:nth-child(3) {
     display: none;
+  }
+  .compare {
+    padding: var(--s-5) var(--s-4) 0;
+  }
+  .compare__head h1 {
+    font-size: var(--fs-28);
+  }
+  .ctable__row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--s-1) var(--s-3);
+  }
+  .ctable__row .ctable__label {
+    grid-column: 1 / -1;
+  }
+  .ctable__row--head .ctable__label {
+    display: none;
+  }
+  .ctable__name {
+    font-size: var(--fs-16);
+  }
+  .find {
+    flex-basis: 100%;
   }
 }

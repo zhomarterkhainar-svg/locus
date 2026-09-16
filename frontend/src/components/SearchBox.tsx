@@ -9,9 +9,13 @@ type Props = {
   initial?: string;
   autoFocus?: boolean;
   onResult?: (result: SearchResult | null, loading: boolean) => void;
+  /** Если задано, выбор вуза не открывает профиль, а передаётся наружу (например, для сравнения). */
+  onPick?: (c: Candidate) => void;
+  placeholder?: string;
+  submitLabel?: string;
 };
 
-export function SearchBox({ size = "large", initial = "", autoFocus = false, onResult }: Props) {
+export function SearchBox({ size = "large", initial = "", autoFocus = false, onResult, onPick, placeholder, submitLabel = "Найти" }: Props) {
   const [value, setValue] = useState(initial);
   const [items, setItems] = useState<Candidate[]>([]);
   const [open, setOpen] = useState(false);
@@ -60,7 +64,8 @@ export function SearchBox({ size = "large", initial = "", autoFocus = false, onR
     skipNext.current = true;
     setValue(c.label);
     setOpen(false);
-    navigate(`/u/${c.qid}`);
+    if (onPick) onPick(c);
+    else navigate(`/u/${c.qid}`);
   }
 
   async function submit(e: React.FormEvent) {
@@ -79,6 +84,17 @@ export function SearchBox({ size = "large", initial = "", autoFocus = false, onR
     abort.current?.abort();
     onResult?.(null, true);
     const res = await searchUniversities(q);
+    if (onPick) {
+      onResult?.(null, false);
+      if (res.candidates.length) {
+        setItems(res.candidates.slice(0, 6));
+        setOpen(true);
+        setActive(0);
+      } else {
+        onResult?.(res, false);
+      }
+      return;
+    }
     if (res.status === "ok" && res.candidates[0]) {
       onResult?.(null, false);
       navigate(`/u/${res.candidates[0].qid}`);
@@ -121,7 +137,7 @@ export function SearchBox({ size = "large", initial = "", autoFocus = false, onR
           onKeyDown={onKeyDown}
           onBlur={() => window.setTimeout(() => setOpen(false), 150)}
           onFocus={() => items.length && setOpen(true)}
-          placeholder={size === "large" ? "Например, ЕНУ, Nazarbayev University, КазНУ" : "Другой вуз"}
+          placeholder={placeholder ?? (size === "large" ? "Например, ЕНУ, Nazarbayev University, КазНУ или адрес сайта" : "Другой вуз")}
           autoComplete="off"
           spellCheck={false}
           autoFocus={autoFocus}
@@ -133,7 +149,7 @@ export function SearchBox({ size = "large", initial = "", autoFocus = false, onR
         />
         {pending ? <span className="search__pending" aria-hidden="true" /> : null}
         <button type="submit" className="btn btn--primary search__submit">
-          Найти
+          {submitLabel}
         </button>
       </div>
       {open ? (

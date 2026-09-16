@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { Annotation } from "../components/Annotation";
-import { CampusPlan } from "../components/CampusPlan";
+import { CampusMap } from "../components/CampusMap";
+import { CityPanel } from "../components/CityPanel";
 import { CatalogCard, SkeletonCard } from "../components/CatalogCard";
 import { Footer, TopBar } from "../components/Chrome";
 import { Facts } from "../components/Facts";
@@ -10,8 +11,9 @@ import { PhotoDialog } from "../components/PhotoDialog";
 import { Progress } from "../components/Progress";
 import { RejectedList } from "../components/Rejected";
 import { SearchBox } from "../components/SearchBox";
-import { distance, num } from "../lib/format";
-import type { Box, FactView, PhotoView } from "../lib/types";
+import { findInProfile } from "../lib/api";
+import { distance, isOld, num } from "../lib/format";
+import type { Box, FactView, FindResult, PhotoView } from "../lib/types";
 import { useProfileStream } from "../lib/useProfileStream";
 
 const DRAWERS: { key: string; label: string }[] = [
@@ -42,6 +44,34 @@ export function Profile() {
   const [sort, setSort] = useState<"confidence" | "date">("confidence");
   const [openId, setOpenId] = useState<string | null>(null);
   const [hoverFact, setHoverFact] = useState<FactView | null>(null);
+  const [onlyGeo, setOnlyGeo] = useState(false);
+  const [onlyIndependent, setOnlyIndependent] = useState(false);
+  const [onlyFresh, setOnlyFresh] = useState(false);
+  const [find, setFind] = useState<{ q: string; loading: boolean; result: FindResult | null }>({ q: "", loading: false, result: null });
+  const [comparing, setComparing] = useState(false);
+  const findAbort = useRef<AbortController | null>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    setFind({ q: "", loading: false, result: null });
+    setComparing(false);
+  }, [qid]);
+
+  async function runFind(e: React.FormEvent) {
+    e.preventDefault();
+    const q = find.q.trim();
+    if (q.length < 2) return;
+    findAbort.current?.abort();
+    const ctrl = new AbortController();
+    findAbort.current = ctrl;
+    setFind((f) => ({ ...f, loading: true }));
+    try {
+      const result = await findInProfile(qid, q, ctrl.signal);
+      setFind((f) => ({ ...f, loading: false, result }));
+    } catch {
+      /* новый запрос отменил старый */
+    }
+  }
 
   const building = state.phase === "connecting" || state.phase === "building";
   const uni = state.university;
@@ -60,13 +90,24 @@ export function Profile() {
     return c;
   }, [confirmed]);
 
+  const found = useMemo(() => {
+    if (!find.result || find.result.error) return null;
+    return new Map(find.result.results.map((r, i) => [r.id, i]));
+  }, [find.result]);
+
   const visible = useMemo(() => {
-    const list = drawer === "all" ? confirmed : confirmed.filter((p) => p.category === drawer);
+    let list = drawer === "all" ? confirmed : confirmed.filter((p) => p.category === drawer);
+    if (onlyGeo) list = list.filter((p) => p.lat != null);
+    if (onlyIndependent) list = list.filter((p) => p.source !== "official");
+    if (onlyFresh) list = list.filter((p) => !isOld(p.taken, p.published) && Boolean(p.taken || p.published));
+    if (found) list = list.filter((p) => found.has(p.id));
     const sorted = [...list];
-    if (sort === "confidence") sorted.sort((a, b) => b.confidence - a.confidence);
+    if (found) sorted.sort((a, b) => found.get(a.id)! - found.get(b.id)!);
+    else if (sort === "confidence") sorted.sort((a, b) => b.confidence - a.confidence);
     else sorted.sort((a, b) => (b.taken || b.published || "").localeCompare(a.taken || a.published || ""));
     return sorted;
-  }, [confirmed, drawer, sort]);
+  }, [confirmed, drawer, sort, onlyGeo, onlyIndependent, onlyFresh, found]);
+  const filtered = onlyGeo || onlyIndependent || onlyFresh || Boolean(found);
 
   const evidence = useMemo(() => {
     const m = new Map<string, Box[]>();
@@ -138,7 +179,21 @@ export function Profile() {
                   {uni.city_distance_m != null && uni.city ? (
                     <span>до центра города {uni.city.label}: {distance(uni.city_distance_m)} по прямой</span>
                   ) : null}
+                  <button type="button" className="linkish label-block__compare" onClick={() => setComparing((v) => !v)} aria-expanded={comparing}>
+                    <Icon name="compare" size={14} /> Сравнить с другим вузом
+                  </button>
                 </p>
+                {comparing ? (
+                  <div className="compare-pick">
+                    <SearchBox
+                      size="compact"
+                      autoFocus
+                      placeholder="С каким вузом сравнить"
+                      submitLabel="Сравнить"
+                      onPick={(c) => navigate(`/compare?a=${qid}&b=${c.qid}`)}
+                    />
+                  </div>
+                ) : null}
               </>
             ) : (
               <div aria-hidden="true">
@@ -156,12 +211,13 @@ export function Profile() {
               <SearchBox size="compact" />
             </div>
           </div>
-          <CampusPlan campus={state.campus} photos={confirmed} highlight={new Set(evidence.keys())} />
+          <CampusMap campus={state.campus} photos={confirmed} highlight={new Set(evidence.keys())} routes={state.context?.routes} onOpen={setOpenId} />
         </header>
 
         <div className="profile__body">
           <aside className="profile__side">
             <Facts facts={facts} building={building} photos={state.photos} onHover={setHoverFact} onOpen={setOpenId} activeFact={hoverFact?.id ?? null} />
+            <CityPanel context={state.context} university={uni} building={building} />
           </aside>
 
           <section className="profile__fonds" aria-labelledby="fonds-title">
@@ -199,6 +255,50 @@ export function Profile() {
               })}
             </div>
 
+            <div className="fonds__tools">
+              <form className="find" onSubmit={runFind} role="search">
+                <label className="visually-hidden" htmlFor="find-input">Найти на фото профиля</label>
+                <input
+                  id="find-input"
+                  type="search"
+                  value={find.q}
+                  onChange={(e) => {
+                    const q = e.target.value;
+                    setFind((f) => ({ ...f, q, result: q ? f.result : null }));
+                  }}
+                  placeholder="Найти на фото: бассейн, двухъярусные кровати, зимой"
+                  disabled={building && !all.length}
+                />
+                <button type="submit" className="btn btn--ghost btn--small" disabled={find.loading || find.q.trim().length < 2}>
+                  {find.loading ? "Ищем…" : "Найти"}
+                </button>
+              </form>
+              <fieldset className="filters">
+                <legend className="visually-hidden">Фильтры фонда</legend>
+                <label className="chip">
+                  <input type="checkbox" checked={onlyGeo} onChange={(e) => setOnlyGeo(e.target.checked)} /> с геометкой
+                </label>
+                <label className="chip">
+                  <input type="checkbox" checked={onlyIndependent} onChange={(e) => setOnlyIndependent(e.target.checked)} /> без сайта вуза
+                </label>
+                <label className="chip">
+                  <input type="checkbox" checked={onlyFresh} onChange={(e) => setOnlyFresh(e.target.checked)} /> за последние 5 лет
+                </label>
+              </fieldset>
+              {find.result ? (
+                <p className="find__status" role="status">
+                  {find.result.error
+                    ? find.result.error
+                    : find.result.english
+                      ? `По запросу «${find.result.query}» (${find.result.english}) похожих фото: ${find.result.results.length}. Поиск идёт по содержанию кадра моделью CLIP.`
+                      : find.result.message}{" "}
+                  <button type="button" className="linkish" onClick={() => setFind({ q: "", loading: false, result: null })}>
+                    Сбросить
+                  </button>
+                </p>
+              ) : null}
+            </div>
+
             <div className="fonds__panel" role="tabpanel">
               {visible.length ? (
                 <div className="grid">
@@ -214,8 +314,13 @@ export function Profile() {
               ) : (
                 <div className="empty">
                   <p className="empty__title">
-                    {drawer === "all" ? "Подтверждённых фото не нашлось" : `В разделе «${DRAWERS.find((d) => d.key === drawer)?.label}» нет подтверждённых фото`}
+                    {filtered
+                      ? "Под выбранные фильтры фото не подошли"
+                      : drawer === "all"
+                        ? "Подтверждённых фото не нашлось"
+                        : `В разделе «${DRAWERS.find((d) => d.key === drawer)?.label}» нет подтверждённых фото`}
                   </p>
+                  {filtered ? <p>Снимите фильтры или сбросьте поиск по фото, чтобы увидеть весь фонд.</p> : null}
                   <p>
                     {EMPTY_HINT[drawer] ??
                       "Открытых снимков с понятным происхождением не нашлось. Мы не подставляем похожие фото из других мест, поэтому раздел пуст."}
@@ -250,6 +355,7 @@ export function Profile() {
         onStep={step}
         position={openIndex >= 0 ? `${openIndex + 1} из ${navList.length}` : ""}
         calibratorTrained={state.calibrator ? state.calibrator.trained : null}
+        qid={qid}
       />
     </>
   );
