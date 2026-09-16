@@ -79,7 +79,7 @@ async def _imageinfo(titles: list[str]) -> dict[str, dict[str, Any]]:
     results = await asyncio.gather(*[
         get_json(API, {
             "action": "query", "prop": "imageinfo|coordinates", "titles": "|".join(chunk),
-            "iiprop": "url|size|mime|extmetadata|timestamp", "iiurlwidth": 640,
+            "iiprop": "url|size|mime|extmetadata|timestamp", "iiurlwidth": 500,  # стандартная ширина миниатюр Wikimedia: 640 округляется до 960 и качается втрое дольше
             "iiextmetadatafilter": EXT_FIELDS, "iiextmetadatalanguage": "ru", "format": "json",
         }, timeout=8)
         for chunk in chunks

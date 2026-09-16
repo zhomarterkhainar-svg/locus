@@ -1,12 +1,15 @@
 """OpenStreetMap через Overpass: граница кампуса и объекты рядом."""
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
 
+from .. import cache
 from ..config import get_settings
 from ..domain import University
 from ..geo import Point, bbox_diag, centroid, distance_to_rings, haversine, stitch_ways
@@ -19,7 +22,13 @@ KIND_LABELS = {
     "sport": "Спорт",
     "canteen": "Столовая",
     "other_university": "Другой вуз",
+    "transport": "Остановка транспорта",
+    "shop": "Магазин",
+    "pharmacy": "Аптека",
 }
+# Объекты повседневной инфраструктуры: не часть кампуса, считаются в радиусе от него
+AMENITY_KINDS = {"transport", "shop", "pharmacy"}
+log = logging.getLogger("candid.osm")
 
 
 @dataclass
@@ -44,6 +53,8 @@ class Campus:
     radius_m: float = 700.0
     objects: list[OsmObject] = field(default_factory=list)
     matched_by: str = "coordinates"  # wikidata-tag | coordinates
+    from_cache: bool = False
+    cache_age_s: float | None = None
 
     def distance(self, p: Point) -> float:
         if self.rings:
@@ -68,12 +79,20 @@ class Campus:
             "center": list(self.center) if self.center else None,
             "radius_m": round(self.radius_m),
             "matched_by": self.matched_by,
-            "objects": [o.public() for o in self.objects],
+            "from_cache": self.from_cache,
+            "objects": [o.public() for o in self.objects if o.kind not in AMENITY_KINDS],
+            "amenities": [o.public() for o in self.objects if o.kind in AMENITY_KINDS],
         }
 
 
 def _kind(tags: dict[str, str], own_qid: str) -> tuple[str, str | None] | None:
     leisure = tags.get("leisure", "")
+    if tags.get("highway") == "bus_stop" or tags.get("public_transport") in {"platform", "stop_position"} or tags.get("railway") in {"tram_stop", "station", "subway_entrance"}:
+        return "transport", tags.get("railway") or "bus"
+    if tags.get("shop") in {"supermarket", "convenience", "mall"}:
+        return "shop", tags.get("shop")
+    if tags.get("amenity") == "pharmacy":
+        return "pharmacy", None
     if tags.get("building") == "dormitory" or tags.get("amenity") == "dormitory":
         return "dormitory", None
     if leisure in {"sports_centre", "stadium", "pitch", "swimming_pool", "fitness_centre", "sports_hall", "track"}:
@@ -90,7 +109,8 @@ def _kind(tags: dict[str, str], own_qid: str) -> tuple[str, str | None] | None:
 
 
 def build_query(uni: University, lat: float, lon: float, radius: int) -> str:
-    return f"""[out:json][timeout:8];
+    near = min(radius, 900)
+    return f"""[out:json][timeout:25];
 nwr(around:3000,{lat},{lon})["wikidata"="{uni.qid}"]->.own;
 .own out geom;
 (
@@ -98,7 +118,14 @@ nwr(around:3000,{lat},{lon})["wikidata"="{uni.qid}"]->.own;
   nwr(around:{radius},{lat},{lon})["building"~"^(dormitory|university)$"];
   nwr(around:{radius},{lat},{lon})["leisure"~"^(sports_centre|stadium|pitch|swimming_pool|fitness_centre|sports_hall)$"];
 );
-out tags center 250;"""
+out tags center 250;
+(
+  node(around:{near},{lat},{lon})["highway"="bus_stop"];
+  node(around:{near},{lat},{lon})["railway"~"^(tram_stop|station|subway_entrance)$"];
+  nwr(around:{near},{lat},{lon})["shop"~"^(supermarket|convenience|mall)$"];
+  nwr(around:{near},{lat},{lon})["amenity"="pharmacy"];
+);
+out tags center 120;"""
 
 
 def parse(data: dict[str, Any], uni: University) -> Campus:
@@ -142,29 +169,107 @@ def parse(data: dict[str, Any], uni: University) -> Campus:
             if getattr(o, "_is_edu_amenity", False) and o.kind == "academic" and campus.distance((o.lat, o.lon)) > 40:
                 o.kind = "other_university"
         # Объекты «своего» вуза оставляем только в пределах разумного отступа от границы
-        campus.objects = [o for o in campus.objects if o.kind == "other_university" or campus.distance((o.lat, o.lon)) <= 400]
+        campus.objects = [o for o in campus.objects
+                          if o.kind == "other_university" or o.kind in AMENITY_KINDS or campus.distance((o.lat, o.lon)) <= 400]
+    # Дубли одного объекта (узел и контур с одним именем) не нужны
+    seen: set[tuple[str, str, int, int]] = set()
+    uniq = []
+    for o in campus.objects:
+        k = (o.kind, o.name, round(o.lat * 2000), round(o.lon * 2000))
+        if k in seen:
+            continue
+        seen.add(k)
+        uniq.append(o)
+    campus.objects = uniq
     return campus
 
 
-async def fetch_campus(uni: University) -> Campus:
-    if uni.lat is None:
-        return Campus()
+_inflight: dict[str, asyncio.Task] = {}
+
+
+async def _race_mirrors(q: str, per_request_timeout: float) -> dict[str, Any]:
+    """Опрашивает зеркала Overpass параллельно и берёт первый корректный ответ."""
+    s = get_settings()
+    c = await client()
+    errors: list[str] = []
+
+    async def one(url: str) -> dict[str, Any]:
+        try:
+            r = await c.post(url, data={"data": q}, timeout=per_request_timeout)
+        except httpx.HTTPError as e:
+            raise SourceError(type(e).__name__) from e
+        if r.status_code != 200:
+            raise SourceError(f"HTTP {r.status_code}")
+        try:
+            data = json.loads(r.text)
+        except ValueError as e:
+            raise SourceError("перегружен (ответ не JSON)") from e
+        if "remark" in data and not data.get("elements") and "runtime error" in str(data.get("remark", "")):
+            raise SourceError("перегружен (runtime error)")
+        return data
+
+    tasks = [asyncio.create_task(one(u)) for u in s.overpass_urls]
+    try:
+        for fut in asyncio.as_completed(tasks):
+            try:
+                return await fut
+            except SourceError as e:
+                errors.append(str(e))
+    finally:
+        for t in tasks:
+            t.cancel()
+    raise SourceError(f"Overpass: {errors[0] if errors else 'нет ответа'}")
+
+
+async def _load_raw(uni: University) -> dict[str, Any]:
     s = get_settings()
     q = build_query(uni, uni.lat, uni.lon, 1400)
-    c = await client()
-    last = "нет ответа"
-    for url in s.overpass_urls:
-        try:
-            r = await c.post(url, data={"data": q}, timeout=s.osm_timeout / len(s.overpass_urls) + 2)
-        except httpx.HTTPError as e:
-            last = type(e).__name__
-            continue
-        if r.status_code != 200:
-            last = f"HTTP {r.status_code}"
-            continue
-        try:
-            return parse(json.loads(r.text), uni)
-        except ValueError:
-            last = "перегружен (ответ не JSON)"
-            continue
-    raise SourceError(f"Overpass: {last}")
+    data = await _race_mirrors(q, s.osm_background_timeout)
+    cache.put("osm", uni.qid, data)
+    return data
+
+
+def _from_raw(data: dict[str, Any], uni: University, age: float | None) -> Campus:
+    campus = parse(data, uni)
+    campus.from_cache = age is not None
+    campus.cache_age_s = age
+    return campus
+
+
+def cached_campus(uni: University) -> Campus | None:
+    hit = cache.get("osm", uni.qid, get_settings().osm_cache_ttl_s)
+    if hit is None:
+        return None
+    return _from_raw(hit[0], uni, hit[1])
+
+
+def background_task(uni: University) -> asyncio.Task:
+    """Одна загрузка на вуз: если сборка не дождалась Overpass, загрузка продолжается и заполняет кэш."""
+    task = _inflight.get(uni.qid)
+    if task is None or task.done():
+        task = asyncio.create_task(_load_raw(uni))
+        _inflight[uni.qid] = task
+
+        def _done(t: asyncio.Task, qid: str = uni.qid) -> None:
+            if _inflight.get(qid) is t:
+                _inflight.pop(qid, None)
+            if not t.cancelled() and t.exception() is not None:
+                log.info("overpass background for %s failed: %s", qid, t.exception())
+
+        task.add_done_callback(_done)
+    return task
+
+
+async def fetch_campus(uni: University, wait_s: float | None = None) -> Campus:
+    if uni.lat is None:
+        return Campus()
+    hit = cached_campus(uni)
+    if hit is not None:
+        return hit
+    task = background_task(uni)
+    timeout = get_settings().osm_timeout if wait_s is None else wait_s
+    try:
+        data = await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
+    except asyncio.TimeoutError as e:
+        raise SourceError(f"Overpass не ответил за {timeout:.0f} с, карта догружается в фоне") from e
+    return _from_raw(data, uni, None)

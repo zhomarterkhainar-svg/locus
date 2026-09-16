@@ -94,6 +94,28 @@ def query_variants(query: str) -> list[str]:
     return variants[:4]
 
 
+_URL = re.compile(r"^(?:https?://)?(?:www\.)?([a-z0-9-]+(?:\.[a-z0-9-]+)+)(?:/.*)?$", re.I)
+
+
+def site_domain(query: str) -> str | None:
+    """«https://www.enu.kz/ru» -> «enu.kz». Только для запросов, похожих на адрес сайта."""
+    q = query.strip()
+    if " " in q or "." not in q:
+        return None
+    m = _URL.match(q)
+    if not m:
+        return None
+    domain = m.group(1).lower()
+    return domain if re.search(r"\.[a-z]{2,}$", domain) else None
+
+
+async def _search_by_site(domain: str) -> list[str]:
+    variants = [f"{p}{w}{domain}{t}" for p in ("https://", "http://") for w in ("", "www.") for t in ("/", "")]
+    q = "haswbstatement:" + "|".join(f"P856={v}" for v in variants)
+    data = await get_json(API, {"action": "query", "list": "search", "srsearch": q, "srlimit": 5, "format": "json"}, timeout=5.0)
+    return [item["title"] for item in data.get("query", {}).get("search", [])]
+
+
 def _fuzzy_query(q: str) -> str:
     words = [w for w in normalize(q).split() if w]
     return " ".join(f"{w}~" if len(w) >= 5 else w for w in words)
@@ -162,9 +184,21 @@ async def search(query: str) -> dict[str, Any]:
     query = query.strip()
     if len(query) < 2:
         return {"query": query, "status": "too_short", "candidates": [], "suggestion": None}
-    variants = query_variants(query)
-    gathered = await asyncio.gather(*[_search_ids(v) for v in variants], return_exceptions=True)
+    domain = site_domain(query)
     ids: list[str] = []
+    if domain:
+        try:
+            ids = await _search_by_site(domain)
+        except SourceError:
+            ids = []
+        if ids:
+            entities = await _wbgetentities(ids[:5], "labels|descriptions|aliases|claims|sitelinks")
+            variants = [_label(e) for e in entities.values() if "missing" not in e] or [domain]
+        else:
+            variants = [domain.split(".")[0]]
+    else:
+        variants = query_variants(query)
+    gathered = await asyncio.gather(*[_search_ids(v) for v in variants[:3]], return_exceptions=True) if not ids else []
     suggestion = None
     errors = 0
     for g in gathered:
@@ -176,7 +210,7 @@ async def search(query: str) -> dict[str, Any]:
         for i in found:
             if i not in ids and re.fullmatch(r"Q\d+", i):
                 ids.append(i)
-    if errors == len(gathered):
+    if gathered and errors == len(gathered):
         return {"query": query, "status": "error", "candidates": [], "suggestion": None,
                 "message": "Wikidata сейчас не отвечает. Попробуйте ещё раз через минуту."}
     entities = await _wbgetentities(ids[:50], "labels|descriptions|aliases|claims|sitelinks") if ids else {}
@@ -203,7 +237,7 @@ async def search(query: str) -> dict[str, Any]:
             "description": _description(e),
             "country": _label(places[country[0]]) if country and country[0] in places else None,
             "city": _label(places[city[0]]) if city and city[0] in places else None,
-            "image": f"https://commons.wikimedia.org/wiki/Special:FilePath/{quote(image)}?width=240" if image else None,
+            "image": f"https://commons.wikimedia.org/wiki/Special:FilePath/{quote(image)}?width=250" if image else None,
             "website": _first_value(c, "P856"),
             "lat": coords.get("latitude"),
             "lon": coords.get("longitude"),

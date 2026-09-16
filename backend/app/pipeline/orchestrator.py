@@ -17,7 +17,7 @@ from ..facts.engine import build_facts
 from ..geo import haversine
 from ..http import SourceError
 from ..search.wikidata import get_university
-from ..sources import commons, flickr, official_site, osm, wikipedia
+from ..sources import commons, context, flickr, official_site, osm, wikipedia
 from ..verify import calibrator
 from ..verify.signals import NameMatcher, build as build_signals
 from ..verify.stock import stock_reason
@@ -75,6 +75,8 @@ class ProfileBuild:
         self.counts = Counter()
         self.downloads_left = self.s.max_downloads
         self._feature_rows: list[dict[str, Any]] = []
+        self.context_task: asyncio.Task | None = None
+        self.late_campus: osm.Campus | None = None
 
     async def emit(self, type_: str, data: dict[str, Any]) -> None:
         await self.log.emit(type_, data)
@@ -164,6 +166,11 @@ class ProfileBuild:
             await asyncio.wait_for(desc_task, timeout=remaining)
         except asyncio.TimeoutError:
             await self.stage("describe", "error", message="описание не успело собраться")
+        if self.context_task is not None:
+            try:
+                await asyncio.wait_for(asyncio.shield(self.context_task), timeout=max(1.0, t0 + self.s.total_budget + 5 - time.perf_counter()))
+            except (asyncio.TimeoutError, Exception):  # noqa: BLE001
+                pass
         await self.progress()
         self.log.feature_rows = self._feature_rows
 
@@ -173,20 +180,55 @@ class ProfileBuild:
         start = time.perf_counter()
         await self.emit("source", {"key": "osm", "label": SOURCE_LABELS["osm"], "status": "running"})
         try:
-            self.campus = await asyncio.wait_for(osm.fetch_campus(self.uni), timeout=self.s.osm_timeout)
+            self.campus = await osm.fetch_campus(self.uni, wait_s=self.s.osm_timeout)
             status = "ok" if (self.campus.rings or self.campus.objects) else "empty"
             msg = "граница кампуса найдена по тегу Wikidata" if self.campus.rings else "граница кампуса не размечена, используется точка из Wikidata"
+            if self.campus.from_cache:
+                msg += "; карта из кэша"
             await self.emit("source", {"key": "osm", "label": SOURCE_LABELS["osm"], "status": status, "count": len(self.campus.objects),
-                                       "ms": int((time.perf_counter() - start) * 1000), "message": msg})
+                                       "ms": int((time.perf_counter() - start) * 1000), "message": msg, "cached": self.campus.from_cache})
         except (SourceError, asyncio.TimeoutError) as e:
             if self.uni and self.uni.lat is not None:
                 self.campus = osm.Campus(center=(self.uni.lat, self.uni.lon))
+                self._late_campus()
             await self.emit("source", {"key": "osm", "label": SOURCE_LABELS["osm"], "status": "error",
                                        "ms": int((time.perf_counter() - start) * 1000), "message": str(e) or "нет ответа"})
         finally:
             self.campus_ready.set()
-            await self.emit("campus", {**self.campus.public(), "university": {"lat": self.uni.lat, "lon": self.uni.lon} if self.uni else None,
-                                       "city": self.uni.city.__dict__ if self.uni and self.uni.city else None})
+            await self._emit_campus()
+            self.context_task = asyncio.create_task(self._context())
+
+    async def _emit_campus(self, late: bool = False) -> None:
+        await self.emit("campus", {**self.campus.public(), "late": late,
+                                   "university": {"lat": self.uni.lat, "lon": self.uni.lon} if self.uni else None,
+                                   "city": self.uni.city.__dict__ if self.uni and self.uni.city else None})
+
+    def _late_campus(self) -> None:
+        """Overpass не успел: когда фоновая загрузка закончится, карта в открытом профиле обновится."""
+        uni = self.uni
+        task = osm.background_task(uni)
+
+        async def later() -> None:
+            try:
+                data = await task
+            except Exception:  # noqa: BLE001
+                return
+            if self.log.finished:
+                return
+            self.late_campus = osm.parse(data, uni)
+            self.campus = self.late_campus
+            await self._emit_campus(late=True)
+
+        asyncio.create_task(later())
+
+    async def _context(self) -> None:
+        """Логистика и климат: не влияют на фото, приходят отдельным событием."""
+        try:
+            data = await asyncio.wait_for(context.build(self.uni, self.campus), timeout=self.s.context_timeout + 4)
+        except Exception as e:  # noqa: BLE001
+            log.info("context failed: %s", e)
+            data = {"error": "Не удалось собрать климат и маршруты."}
+        await self.emit("context", data)
 
     async def _wiki(self) -> list[dict[str, Any]]:
         try:
@@ -287,6 +329,7 @@ class ProfileBuild:
                         self.images[photo.candidate.id] = item.image
                     if photo.candidate.origin == "lead":
                         self.ref_emb.append(result["emb"][idx])
+                    self.log.embeddings[photo.candidate.id] = result["emb"][idx].astype(np.float16)
                     new_photos.append(photo)
                 else:
                     rep = self.photos[self.rep_of_cluster[cid]]
@@ -297,6 +340,8 @@ class ProfileBuild:
                         photo.shelfmark = rep.shelfmark
                         del self.photos[rep.candidate.id]
                         self.photos[photo.candidate.id] = photo
+                        self.log.embeddings.pop(rep.candidate.id, None)
+                        self.log.embeddings[photo.candidate.id] = result["emb"][idx].astype(np.float16)
                         self.rep_of_cluster[cid] = photo.candidate.id
                         if rep.candidate.id in self.images:
                             self.images.pop(rep.candidate.id)
@@ -415,13 +460,40 @@ class ProfileBuild:
         dorm = sorted(dorm, key=lambda p: p.confidence, reverse=True)[:30]
         if dorm:
             async with ML_LOCK:
-                boxes = await asyncio.to_thread(detector.detect, [self.images[p.candidate.id] for p in dorm], 0.3)
+                imgs = [self.images[p.candidate.id] for p in dorm]
+                boxes = await asyncio.to_thread(detector.detect, imgs, 0.3)
+                try:
+                    await asyncio.to_thread(self._bunk_stage, imgs, boxes)
+                except Exception:  # noqa: BLE001
+                    log.exception("bunk stage failed")
             for p, b in zip(dorm, boxes):
                 p.boxes = b
             await self.emit("boxes", {"items": [{"id": p.candidate.id, "boxes": p.boxes} for p in dorm if p.boxes]})
         facts = build_facts(list(self.photos.values()), self.campus)
         await self.emit("facts", {"facts": facts, "detector": "Ultralytics YOLO11s (COCO)"})
         self.images.clear()
+
+    @staticmethod
+    def _bunk_stage(images: list, boxes: list[list[dict[str, Any]]]) -> None:
+        """Второй этап: вырезки кроватей классифицируются как двухъярусные или обычные."""
+        crops, refs = [], []
+        for img, bs in zip(images, boxes):
+            w, h = img.size
+            for b in bs:
+                if b["label"] != "кровать" or b["conf"] < 0.35:
+                    continue
+                x0, y0 = max(0, int((b["x"] - 0.04) * w)), max(0, int((b["y"] - 0.04) * h))
+                x1, y1 = min(w, int((b["x"] + b["w"] + 0.04) * w)), min(h, int((b["y"] + b["h"] + 0.04) * h))
+                if x1 - x0 < 24 or y1 - y0 < 24:
+                    continue
+                crops.append(img.crop((x0, y0, x1, y1)))
+                refs.append(b)
+        if not crops:
+            return
+        clip = get_clip()
+        p = clip.bunk_scores(clip.embed_images(crops))
+        for b, v in zip(refs, p):
+            b["bunk"] = round(float(v), 3)
 
     async def _describe(self, wiki_task: asyncio.Task, site_task: asyncio.Task) -> None:
         await self.stage("describe", "running")
