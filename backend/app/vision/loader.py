@@ -47,6 +47,8 @@ async def _load_one(cand: Candidate, sem: asyncio.Semaphore) -> Loaded:
             return Loaded(cand, None, error="не скачалось вовремя")
         except httpx.HTTPError as e:
             return Loaded(cand, None, error=f"сетевая ошибка {type(e).__name__}")
+        except Exception as e:  # noqa: BLE001
+            return Loaded(cand, None, error=f"ошибка загрузки {type(e).__name__}")
     try:
         img = await asyncio.to_thread(_decode, bytes(buf))
     except Exception:  # noqa: BLE001

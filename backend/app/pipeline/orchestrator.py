@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from collections import Counter
 from datetime import datetime, timezone
@@ -28,6 +29,7 @@ from ..vision.loader import load_all
 from .events import EventLog
 
 ML_LOCK = asyncio.Semaphore(1)
+log = logging.getLogger("candid.pipeline")
 
 SOURCE_LABELS = {
     "commons": "Wikimedia Commons",
@@ -95,6 +97,7 @@ class ProfileBuild:
         try:
             await self._run(t0)
         except Exception as e:  # noqa: BLE001
+            log.exception("build %s failed", self.qid)
             await self.emit("error", {"message": "Сборка прервалась из-за внутренней ошибки. Попробуйте ещё раз.", "detail": type(e).__name__})
         finally:
             await self.emit("done", {"total_ms": self.log.elapsed_ms(), "calibrator": calibrator.info(),
@@ -209,6 +212,7 @@ class ProfileBuild:
             await self.emit("source", {"key": key, "label": SOURCE_LABELS[key], "status": "error", "ms": int((time.perf_counter() - start) * 1000), "message": str(e)})
             return [], []
         except Exception as e:  # noqa: BLE001
+            log.exception("source %s failed", key)
             await self.emit("source", {"key": key, "label": SOURCE_LABELS[key], "status": "error", "ms": int((time.perf_counter() - start) * 1000),
                                        "message": f"ошибка обработки ответа ({type(e).__name__})"})
             return [], []
@@ -216,7 +220,12 @@ class ProfileBuild:
                                    "ms": int((time.perf_counter() - start) * 1000)})
         if cands:
             await self.stage("analyze", "running")
-            await self._process(cands)
+            try:
+                await self._process(cands)
+            except Exception as e:  # noqa: BLE001
+                log.exception("processing %s failed", key)
+                await self.emit("source", {"key": key, "label": SOURCE_LABELS[key], "status": "error",
+                                           "message": f"ошибка анализа фото ({type(e).__name__})"})
         return cands, pages
 
     # ---------- анализ ----------
@@ -406,7 +415,7 @@ class ProfileBuild:
         dorm = sorted(dorm, key=lambda p: p.confidence, reverse=True)[:30]
         if dorm:
             async with ML_LOCK:
-                boxes = await asyncio.to_thread(detector.detect, [self.images[p.candidate.id] for p in dorm])
+                boxes = await asyncio.to_thread(detector.detect, [self.images[p.candidate.id] for p in dorm], 0.3)
             for p, b in zip(dorm, boxes):
                 p.boxes = b
             await self.emit("boxes", {"items": [{"id": p.candidate.id, "boxes": p.boxes} for p in dorm if p.boxes]})
@@ -422,7 +431,7 @@ class ProfileBuild:
             res = await asyncio.wait_for(asyncio.shield(site_task), timeout=self.s.source_timeout + 2)
             if isinstance(res, tuple):
                 pages = res[1]
-        except (asyncio.TimeoutError, asyncio.CancelledError):
+        except (asyncio.TimeoutError, asyncio.CancelledError, Exception):  # noqa: BLE001
             pages = []
         sources = collect(self.uni, wiki, pages)
         result = await describe(self.uni, sources)

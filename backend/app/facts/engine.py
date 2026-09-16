@@ -50,13 +50,17 @@ def _independent(photos: list[Photo]) -> list[Photo]:
     return out
 
 
+MIN_CONF = {"кровать": 0.45, "стол": 0.35, "стул": 0.35}
+
+
 def _evidence(p: Photo, labels: set[str] | None = None) -> dict[str, Any]:
-    boxes = [b for b in p.boxes if labels is None or b["label"] in labels]
+    boxes = [b for b in p.boxes if (labels is None or b["label"] in labels) and b["conf"] >= MIN_CONF.get(b["label"], 0.3)]
     return {"photo_id": p.candidate.id, "shelfmark": p.shelfmark, "boxes": boxes}
 
 
-def _count(p: Photo, label: str, min_conf: float = 0.4) -> int:
-    return sum(1 for b in p.boxes if b["label"] == label and b["conf"] >= min_conf)
+def _count(p: Photo, label: str, min_conf: float | None = None) -> int:
+    threshold = MIN_CONF.get(label, 0.3) if min_conf is None else min_conf
+    return sum(1 for b in p.boxes if b["label"] == label and b["conf"] >= threshold)
 
 
 def _status(n: int, strong: int = 3) -> str:

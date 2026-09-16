@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import re
 from typing import Any
+from urllib.parse import quote
 
 from rapidfuzz import fuzz
 
@@ -202,7 +203,7 @@ async def search(query: str) -> dict[str, Any]:
             "description": _description(e),
             "country": _label(places[country[0]]) if country and country[0] in places else None,
             "city": _label(places[city[0]]) if city and city[0] in places else None,
-            "image": f"https://commons.wikimedia.org/wiki/Special:FilePath/{image}?width=240" if image else None,
+            "image": f"https://commons.wikimedia.org/wiki/Special:FilePath/{quote(image)}?width=240" if image else None,
             "website": _first_value(c, "P856"),
             "lat": coords.get("latitude"),
             "lon": coords.get("longitude"),
