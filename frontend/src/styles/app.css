@@ -2066,9 +2066,14 @@ a.cand:hover {
   border-radius: var(--radius);
   background: var(--card);
   cursor: grab;
-  /* Жесты браузера на карте перехватываем сами, иначе страница уезжает вместе с картой. */
-  touch-action: none;
+  /* Вертикальную прокрутку страницы оставляем браузеру: иначе на телефоне карта
+     перехватывает движение пальца и страницу невозможно пролистать мимо неё.
+     Горизонтальное движение достаётся карте, а в развёрнутом виде - любое. */
+  touch-action: pan-y;
   user-select: none;
+}
+.plan--expanded .plan__svg {
+  touch-action: none;
 }
 .plan.is-dragging .plan__svg {
   cursor: grabbing;
@@ -2551,4 +2556,41 @@ a.cand:hover {
 }
 .record__photo.is-zoomed img {
   cursor: zoom-out;
+}
+
+@media (max-width: 720px) {
+  /* Пальцем в кнопку 24 px не попасть: на телефоне увеличиваем и показываем всегда. */
+  .plan__zoom {
+    opacity: 1;
+  }
+  .plan__zoom button {
+    width: 34px;
+    height: 34px;
+  }
+  .plan--expanded {
+    inset: 0;
+    border: 0;
+    padding: var(--s-3);
+  }
+  .plan--expanded .plan__stage {
+    height: calc(100vh - 150px);
+  }
+  .plan__popup {
+    max-width: 200px;
+  }
+  .home__popular ul {
+    gap: 6px;
+  }
+  .toast {
+    left: var(--s-4);
+    right: var(--s-4);
+    transform: none;
+    text-align: center;
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+  }
 }
