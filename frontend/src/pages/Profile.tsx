@@ -12,6 +12,7 @@ import { Progress } from "../components/Progress";
 import { RejectedList } from "../components/Rejected";
 import { SearchBox } from "../components/SearchBox";
 import { findInProfile } from "../lib/api";
+import { download, photosToCsv } from "../lib/export";
 import { distance, isOld, num } from "../lib/format";
 import type { Box, FactView, FindResult, PhotoView } from "../lib/types";
 import { useProfileStream } from "../lib/useProfileStream";
@@ -49,6 +50,7 @@ export function Profile() {
   const [onlyFresh, setOnlyFresh] = useState(false);
   const [find, setFind] = useState<{ q: string; loading: boolean; result: FindResult | null }>({ q: "", loading: false, result: null });
   const [comparing, setComparing] = useState(false);
+  const [toast, setToast] = useState("");
   const findAbort = useRef<AbortController | null>(null);
   const navigate = useNavigate();
 
@@ -56,6 +58,26 @@ export function Profile() {
     setFind({ q: "", loading: false, result: null });
     setComparing(false);
   }, [qid]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(""), 2600);
+    return () => window.clearTimeout(id);
+  }, [toast]);
+
+  async function share() {
+    const url = window.location.href;
+    try {
+      // На телефоне это системное меню «Поделиться», на десктопе - копирование ссылки.
+      if (navigator.share) await navigator.share({ title: document.title, url });
+      else {
+        await navigator.clipboard.writeText(url);
+        setToast("Ссылка скопирована");
+      }
+    } catch {
+      setToast("Не удалось поделиться, скопируйте адрес из строки браузера");
+    }
+  }
 
   async function runFind(e: React.FormEvent) {
     e.preventDefault();
@@ -131,6 +153,11 @@ export function Profile() {
     setNonce((n) => n + 1);
   }
 
+  function retry() {
+    setFresh(false);
+    setNonce((n) => n + 1);
+  }
+
   if (state.fatal && !uni) {
     return (
       <>
@@ -140,7 +167,7 @@ export function Profile() {
             <h1>Профиль не собрался</h1>
             <p>{state.error}</p>
             <p>
-              <button type="button" className="btn btn--primary" onClick={() => setNonce((n) => n + 1)}>Попробовать снова</button>{" "}
+              <button type="button" className="btn btn--primary" onClick={retry}>Попробовать снова</button>{" "}
               <Link to="/">Вернуться к поиску</Link>
             </p>
           </div>
@@ -185,6 +212,18 @@ export function Profile() {
                   <button type="button" className="linkish label-block__compare" onClick={() => setComparing((v) => !v)} aria-expanded={comparing}>
                     <Icon name="compare" size={14} /> Сравнить с другим вузом
                   </button>
+                  <button type="button" className="linkish" onClick={share}>
+                    <Icon name="share" size={13} /> Поделиться
+                  </button>
+                  <button
+                    type="button"
+                    className="linkish"
+                    onClick={() => download(`${uni.qid}-фонд.csv`, photosToCsv([...confirmed, ...unconfirmed]))}
+                    disabled={!confirmed.length && !unconfirmed.length}
+                    title="Таблица со ссылками на источники, авторами и лицензиями"
+                  >
+                    <Icon name="download" size={13} /> Выгрузить CSV
+                  </button>
                 </p>
                 {comparing ? (
                   <div className="compare-pick">
@@ -209,7 +248,7 @@ export function Profile() {
               <p key={n} className="notice notice--warn" role="status">{n}</p>
             ))}
             <Annotation description={state.description} building={building} />
-            <Progress state={state} onRebuild={rebuild} />
+            <Progress key={nonce} state={state} onRebuild={rebuild} />
             <div className="mobile-search">
               <SearchBox size="compact" />
             </div>
@@ -329,6 +368,14 @@ export function Profile() {
                       "Открытых снимков с понятным происхождением не нашлось. Мы не подставляем похожие фото из других мест, поэтому раздел пуст."}
                   </p>
                   {unconfirmed.length ? <p>Ниже есть неподтверждённые кандидаты: их можно проверить вручную по источнику.</p> : null}
+                  {!filtered && !all.length ? (
+                    <p className="empty__actions">
+                      <button type="button" className="btn btn--primary btn--small" onClick={rebuild}>
+                        Собрать заново без кэша
+                      </button>{" "}
+                      <Link to="/">Выбрать другой вуз</Link>
+                    </p>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -351,6 +398,11 @@ export function Profile() {
           </section>
         </div>
       </main>
+      {toast ? (
+        <p className="toast" role="status">
+          {toast}
+        </p>
+      ) : null}
       <Footer />
       <PhotoDialog
         photo={openPhoto}

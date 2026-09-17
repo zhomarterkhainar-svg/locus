@@ -1210,7 +1210,7 @@ a.cand:hover {
 }
 .boxes__outline {
   fill: none;
-  stroke: rgb(23 32 51 / 0.75);
+  stroke: rgb(var(--shadow-ink) / 0.75);
   stroke-width: 4;
 }
 .boxes__rect {
@@ -1325,7 +1325,7 @@ a.cand:hover {
   color: var(--ink);
 }
 .record::backdrop {
-  background: rgb(23 32 51 / 0.62);
+  background: rgb(var(--shadow-ink) / 0.62);
 }
 .record__bar {
   position: sticky;
@@ -2050,4 +2050,479 @@ a.cand:hover {
   .find {
     flex-basis: 100%;
   }
+}
+
+/* ============================================================
+   Интерактивная карта: перетаскивание, масштаб, слои, карточки объектов
+   ============================================================ */
+.plan__stage {
+  position: relative;
+}
+.plan__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: var(--hair);
+  border-radius: var(--radius);
+  background: var(--card);
+  cursor: grab;
+  /* Жесты браузера на карте перехватываем сами, иначе страница уезжает вместе с картой. */
+  touch-action: none;
+  user-select: none;
+}
+.plan.is-dragging .plan__svg {
+  cursor: grabbing;
+}
+.plan__zoom {
+  position: absolute;
+  top: var(--s-2);
+  right: var(--s-2);
+  display: grid;
+  gap: 2px;
+  opacity: 0.55;
+  transition: opacity var(--t-fast) ease;
+}
+.plan:hover .plan__zoom,
+.plan__zoom:focus-within {
+  opacity: 1;
+}
+.plan__zoom button {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: var(--fs-14);
+  line-height: 1;
+  color: var(--ink);
+  background: var(--card);
+  border: var(--hair);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background var(--t-fast) ease, border-color var(--t-fast) ease, transform var(--t-fast) ease;
+}
+.plan__zoom button:hover:not(:disabled) {
+  background: var(--guide-active);
+  border-color: var(--ink);
+  transform: translateY(-1px);
+}
+.plan__zoom button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.plan__obj {
+  cursor: pointer;
+}
+.plan__obj.is-active rect {
+  stroke: var(--pencil);
+  stroke-width: 2;
+}
+.plan__popup {
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, calc(-100% - 12px));
+  min-width: 150px;
+  max-width: 230px;
+  display: grid;
+  gap: 3px;
+  padding: var(--s-2) var(--s-3);
+  background: var(--card);
+  border: 1px solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: 3px 3px 0 rgba(var(--shadow-ink), 0.12);
+  animation: popup-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes popup-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% - 4px));
+  }
+}
+.plan__popup-title {
+  font-size: var(--fs-13);
+  font-weight: 600;
+  padding-right: var(--s-3);
+}
+.plan__popup-note {
+  font-size: var(--fs-12);
+  color: var(--ink-3);
+}
+.plan__popup a,
+.plan__popup .btn {
+  font-size: var(--fs-12);
+  justify-self: start;
+}
+.plan__popup-close {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  border: 0;
+  background: none;
+  font-size: var(--fs-14);
+  line-height: 1;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.plan__popup-close:hover {
+  color: var(--pencil);
+}
+.plan--expanded {
+  position: fixed;
+  inset: 4vh 4vw;
+  z-index: 60;
+  margin: 0;
+  padding: var(--s-4);
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  box-shadow: 8px 8px 0 rgba(var(--shadow-ink), 0.18);
+  overflow: auto;
+  animation: file-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.plan--expanded .plan__stage {
+  height: calc(92vh - 96px);
+}
+.plan--expanded .plan__svg {
+  height: 100%;
+  width: 100%;
+}
+.plan__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  border: 0;
+  background: rgba(var(--shadow-ink), 0.32);
+  cursor: zoom-out;
+}
+.lg-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  font: inherit;
+  font-size: var(--fs-12);
+  color: var(--ink-3);
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity var(--t-fast) ease, border-color var(--t-fast) ease;
+}
+.lg-toggle.is-on {
+  opacity: 1;
+}
+.lg-toggle:hover {
+  border-color: var(--rule);
+}
+.lg-toggle__count {
+  font-size: var(--fs-11);
+  color: var(--ink-3);
+}
+
+/* ---------- Экран сбоя интерфейса ---------- */
+.crash__actions {
+  margin-top: var(--s-3);
+}
+.crash__details {
+  margin-top: var(--s-3);
+  font-size: var(--fs-12);
+  color: var(--ink-3);
+}
+.crash__details pre {
+  margin-top: var(--s-2);
+  padding: var(--s-2);
+  overflow: auto;
+  background: var(--paper-deep);
+  font-family: var(--font-field);
+  font-size: var(--fs-11);
+  white-space: pre-wrap;
+}
+
+/* ============================================================
+   Движение: появление карточек, реакция на наведение, ожидание
+   ============================================================ */
+.ccard {
+  transition: border-color var(--t-fast) ease, transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ccard:hover {
+  transform: translateY(-3px);
+  box-shadow: 4px 4px 0 rgba(var(--shadow-ink), 0.1);
+}
+.ccard__photo img {
+  transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1), filter var(--t-fast) ease;
+}
+.ccard:hover .ccard__photo img {
+  transform: scale(1.035);
+}
+.ccard--low:hover .ccard__photo img {
+  filter: grayscale(0);
+}
+.ccard__open:focus-visible {
+  outline: 2px solid var(--stamp);
+  outline-offset: 2px;
+}
+
+/* Блики на заглушках: видно, что данные ещё едут, а не что страница замерла. */
+.skel,
+.ccard--skeleton .ccard__photo {
+  position: relative;
+  overflow: hidden;
+}
+.skel::after,
+.ccard--skeleton .ccard__photo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--sheen-color), transparent);
+  animation: sheen 1.6s ease-in-out infinite;
+}
+@keyframes sheen {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.guide {
+  transition: background var(--t-fast) ease, border-color var(--t-fast) ease, transform var(--t-fast) ease;
+}
+.guide:hover {
+  transform: translateY(-2px);
+}
+.guide.is-active {
+  transform: translateY(-3px);
+}
+
+.btn {
+  transition: background var(--t-fast) ease, color var(--t-fast) ease, border-color var(--t-fast) ease,
+    transform var(--t-fast) ease;
+}
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.search__list {
+  animation: drop-in 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.search__list li {
+  transition: background var(--t-fast) ease, padding-left var(--t-fast) ease;
+}
+.search__list li:hover,
+.search__list li.is-active {
+  padding-left: calc(var(--s-3) + 3px);
+}
+
+.notice {
+  animation: notice-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.fact {
+  transition: background var(--t-fast) ease, border-color var(--t-fast) ease, transform var(--t-fast) ease;
+}
+.fact[data-clickable="true"]:hover {
+  transform: translateX(2px);
+}
+
+/* Кому движение мешает - тому его нет: системная настройка уважается целиком. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .ccard:hover,
+  .guide:hover,
+  .btn:hover:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ---------- Подсказки поиска: пять ближайших совпадений ---------- */
+.search__list li[role="option"] {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "rank name badge"
+    "rank meta meta";
+  align-items: center;
+  gap: 1px var(--s-3);
+}
+.search__rank {
+  grid-area: rank;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  font-size: var(--fs-11);
+  color: var(--ink-3);
+  background: var(--paper-deep);
+  border-radius: 50%;
+}
+.search__list li.is-active .search__rank {
+  background: var(--stamp);
+  color: var(--card);
+}
+.search__name {
+  grid-area: name;
+}
+.search__name mark {
+  background: transparent;
+  color: var(--stamp);
+  font-weight: 700;
+}
+.search__meta {
+  grid-area: meta;
+}
+.search__badge {
+  grid-area: badge;
+  padding: 1px 5px;
+  font-size: var(--fs-11);
+  color: var(--stamp);
+  border: 1px solid var(--stamp);
+  border-radius: var(--radius);
+  text-transform: lowercase;
+}
+.search__group,
+.search__hint {
+  padding: 5px var(--s-4);
+  font-size: var(--fs-11);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--paper-deep);
+  cursor: default;
+}
+.search__hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--fs-12);
+  background: none;
+  border-top: var(--hair-soft);
+}
+.search__list li.search__group:hover,
+.search__list li.search__hint:hover {
+  background: var(--paper-deep);
+}
+.search__list li.search__hint:hover {
+  background: none;
+}
+
+/* ---------- Переключатель темы ---------- */
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--ink-2);
+  background: none;
+  border: var(--hair);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: color var(--t-fast) ease, border-color var(--t-fast) ease, transform var(--t-fast) ease;
+}
+.theme-toggle:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+  transform: rotate(-12deg);
+}
+
+/* ---------- Быстрый выбор вуза на главной ---------- */
+.home__popular {
+  margin: var(--s-4) 0 var(--s-5);
+  display: grid;
+  gap: var(--s-2);
+}
+.home__popular-label {
+  font-size: var(--fs-13);
+  color: var(--ink-3);
+}
+.home__popular ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.home__popular li {
+  animation: file-in 320ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.pick {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  padding: 6px var(--s-3);
+  background: var(--card);
+  border: var(--hair);
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--ink);
+  transition: border-color var(--t-fast) ease, transform var(--t-fast) ease, box-shadow var(--t-fast) ease;
+}
+.pick:hover {
+  border-color: var(--ink);
+  transform: translateY(-2px);
+  box-shadow: 3px 3px 0 rgba(var(--shadow-ink), 0.1);
+}
+.pick__name {
+  font-size: var(--fs-14);
+  font-weight: 500;
+}
+.pick__city {
+  font-size: var(--fs-11);
+  color: var(--ink-3);
+}
+
+/* ---------- Всплывающее уведомление ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: var(--s-5);
+  transform: translateX(-50%);
+  z-index: 70;
+  padding: var(--s-2) var(--s-4);
+  font-size: var(--fs-13);
+  color: var(--card);
+  background: var(--ink);
+  border-radius: var(--radius);
+  box-shadow: 4px 4px 0 rgba(var(--shadow-ink), 0.18);
+  animation: toast-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+}
+
+.empty__actions {
+  margin-top: var(--s-4);
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+/* Тёмной подложки без ключа у OpenStreetMap нет, поэтому светлую инвертируем:
+   вода и зелень возвращаются к своим оттенкам поворотом тона на 180°. */
+.plan__tile--dark {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.95) saturate(0.7);
 }

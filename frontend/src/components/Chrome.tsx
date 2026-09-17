@@ -1,5 +1,24 @@
 import { Link, NavLink } from "react-router-dom";
+import { useTheme } from "../lib/theme";
+import { Icon } from "./Icon";
 import { SearchBox } from "./SearchBox";
+
+/** Светлая тема - бумага, тёмная - тот же архив при настольной лампе. Выбор запоминается. */
+export function ThemeToggle() {
+  const [theme, set] = useTheme();
+  const next = theme === "dark" ? "light" : "dark";
+  return (
+    <button
+      type="button"
+      className="theme-toggle"
+      onClick={() => set(next)}
+      aria-label={next === "dark" ? "Включить тёмную тему" : "Включить светлую тему"}
+      title={next === "dark" ? "Тёмная тема" : "Светлая тема"}
+    >
+      <Icon name={theme === "dark" ? "sun" : "moon"} size={15} />
+    </button>
+  );
+}
 
 export function TopBar({ withSearch = false }: { withSearch?: boolean }) {
   return (
@@ -16,6 +35,7 @@ export function TopBar({ withSearch = false }: { withSearch?: boolean }) {
         ) : null}
         <nav className="topbar__nav" aria-label="Разделы">
           <NavLink to="/method">Как это работает</NavLink>
+          <ThemeToggle />
         </nav>
       </div>
     </header>

@@ -194,28 +194,42 @@ class ProfileBuild:
                 await self.emit("notice", {"message": "Источники отвечают медленнее обычного, ждём ещё немного, чтобы профиль не остался пустым."})
                 continue
             done, pending = await asyncio.wait(pending, timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
-        for task in pending:
-            task.cancel()
+        # Бюджет кончился, но скачанные файлы уже лежат в памяти, и модель их считает. Обрывать
+        # счёт здесь - значит выбросить работу и показать пустой фонд: на слабом инстансе одна
+        # партия считается дольше всего бюджета. Поэтому даём анализу дойти до потолка сборки.
         if pending:
-            await self.emit("notice", {"message": "Часть источников не успела ответить за отведённое время, профиль показан без них."})
+            await self.stage("sources", "done")
+            await self.emit("notice", {"message": "Источники ответили не все, но скачанные фото досчитываются — они появятся ниже по мере проверки."})
+            hard = t0 + self.s.analyze_budget
+            while pending:
+                remaining = hard - time.perf_counter()
+                if remaining <= 0:
+                    break
+                done, pending = await asyncio.wait(pending, timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
+            for task in pending:
+                task.cancel()
+            if pending:
+                await self.emit("notice", {"message": "Часть источников не успела ответить за отведённое время, профиль показан без них."})
         await self.stage("sources", "done")
         await self.stage("analyze", "done")
         await self._ready("источники ответили")
         if not osm_task.done():
             osm_task.cancel()
 
+        # Если анализ вышел за бюджет, отсчитываем остаток от текущего момента: иначе факты,
+        # описание и климат получают отрицательный остаток и не показываются вовсе.
         await self.stage("facts", "running")
-        await self._facts(t0 + self.s.total_budget)
+        await self._facts(max(t0 + self.s.total_budget, time.perf_counter() + self.s.facts_budget))
         await self.stage("facts", "done")
 
-        remaining = max(1.0, t0 + self.s.total_budget + 3 - time.perf_counter())
+        remaining = max(4.0, t0 + self.s.total_budget + 3 - time.perf_counter())
         try:
             await asyncio.wait_for(desc_task, timeout=remaining)
         except asyncio.TimeoutError:
             await self.stage("describe", "error", message="описание не успело собраться")
         if self.context_task is not None:
             try:
-                await asyncio.wait_for(asyncio.shield(self.context_task), timeout=max(0.5, t0 + self.s.total_budget + 4 - time.perf_counter()))
+                await asyncio.wait_for(asyncio.shield(self.context_task), timeout=max(3.0, t0 + self.s.total_budget + 4 - time.perf_counter()))
             except (asyncio.TimeoutError, Exception):  # noqa: BLE001
                 pass
         await self.progress()

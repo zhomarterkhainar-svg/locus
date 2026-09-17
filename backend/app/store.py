@@ -42,8 +42,23 @@ def _headers(extra: dict[str, str] | None = None) -> dict[str, str]:
     return h
 
 
+def _base() -> str:
+    """Адрес проекта без хвоста REST.
+
+    В Supabase адрес проекта показан в двух видах: `https://<ref>.supabase.co` в настройках
+    и `https://<ref>.supabase.co/rest/v1` в примерах запросов. Со вторым вариантом в переменной
+    окружения путь удваивался и PostgREST отвечал PGRST125 «Invalid path specified in request URL»,
+    то есть общий кэш молча не работал. Хвост срезаем, чтобы годились оба варианта.
+    """
+    url = get_settings().supabase_url.strip().rstrip("/")
+    for tail in ("/rest/v1", "/rest"):
+        if url.endswith(tail):
+            url = url[: -len(tail)].rstrip("/")
+    return url
+
+
 def _url(table: str) -> str:
-    return f"{get_settings().supabase_url.rstrip('/')}/rest/v1/{table}"
+    return f"{_base()}/rest/v1/{table}"
 
 
 async def _request(method: str, table: str, **kw: Any) -> Any:

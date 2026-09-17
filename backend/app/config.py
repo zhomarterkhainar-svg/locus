@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     download_timeout: float = 4.0
     total_budget: float = 10.0
     facts_budget: float = 3.0
+    # Потолок всей сборки. Бюджет выше - это цель «когда профиль уже полезен»; проверка уже
+    # скачанных фото после него не обрывается, иначе на слабом инстансе (Render free - доля ядра)
+    # партия не успевает досчитаться и профиль остаётся пустым при полсотне скачанных файлов.
+    analyze_budget: float = 75.0
     source_grace: float = 4.0  # отсрочка источникам, если проверенных фото почти нет
     first_paint_target: float = 3.5  # к этому моменту стараемся показать первые подтверждённые фото
     ready_min_photos: int = 6  # столько подтверждённых фото считаем полезным профилем
@@ -79,7 +83,8 @@ class Settings(BaseSettings):
 
     frontend_dist: str = "frontend/dist"
     # Домены фронтенда, которым разрешён доступ к API (Vercel + локальная разработка).
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    # 5173 - vite dev, 4173 - vite preview (проверка собранной версии перед публикацией).
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173"
     offline_fixtures: str = ""  # путь к фикстурам для офлайн-режима тестов
 
     def path(self, value: str) -> Path:

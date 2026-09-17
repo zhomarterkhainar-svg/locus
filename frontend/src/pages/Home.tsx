@@ -5,12 +5,17 @@ import { SearchBox } from "../components/SearchBox";
 import { searchUniversities } from "../lib/api";
 import type { SearchResult } from "../lib/types";
 
-const EXAMPLES = [
-  "Евразийский национальный университет",
-  "Nazarbayev University",
-  "КазНУ имени аль-Фараби",
-  "Satbayev University",
-  "Astana IT University",
+/**
+ * Быстрый выбор: сразу идентификаторы Wikidata, поэтому переход открывает профиль без
+ * лишнего запроса к поиску, а у этих вузов профиль обычно уже лежит в общем кэше.
+ */
+const POPULAR: { qid: string; label: string; city: string }[] = [
+  { qid: "Q2783344", label: "Назарбаев Университет", city: "Астана" },
+  { qid: "Q127745", label: "ЕНУ имени Гумилёва", city: "Астана" },
+  { qid: "Q427677", label: "КазНУ имени аль-Фараби", city: "Алматы" },
+  { qid: "Q1513804", label: "Satbayev University", city: "Алматы" },
+  { qid: "Q1734762", label: "КБТУ", city: "Алматы" },
+  { qid: "Q133811858", label: "Astana IT University", city: "Астана" },
 ];
 
 export function Home() {
@@ -50,14 +55,15 @@ export function Home() {
               источников, проверит, что они относятся к этому вузу, и покажет, откуда взято каждое.
             </p>
             <SearchBox autoFocus onResult={(r, l) => { setResult(r); setLoading(l); }} />
-            <div className="home__examples">
-              <span>Попробуйте:</span>
+            <div className="home__popular">
+              <span className="home__popular-label">Открыть сразу:</span>
               <ul>
-                {EXAMPLES.map((e) => (
-                  <li key={e}>
-                    <button type="button" className="linkish" onClick={() => run(e)}>
-                      {e}
-                    </button>
+                {POPULAR.map((u, i) => (
+                  <li key={u.qid} style={{ animationDelay: `${i * 45}ms` }}>
+                    <Link to={`/u/${u.qid}`} className="pick">
+                      <span className="pick__name">{u.label}</span>
+                      <span className="pick__city field">{u.city}</span>
+                    </Link>
                   </li>
                 ))}
               </ul>

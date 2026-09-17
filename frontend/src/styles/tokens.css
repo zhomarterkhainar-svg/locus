@@ -49,9 +49,46 @@
   --s-7: 48px;
   --s-8: 64px;
 
+  --shadow-ink: 23, 32, 51;
+  --sheen-color: rgba(245, 245, 240, 0.65);
+
   --radius: 2px;
   --hair: 1px solid var(--rule);
   --hair-soft: 1px solid var(--rule-soft);
   --page-max: 1360px;
   --t-fast: 120ms;
+}
+
+
+/*
+ * Тёмная тема. Вёрстка целиком построена на токенах, поэтому достаточно переопределить их:
+ * бумага становится тёмным картоном, чернила - светлыми, а штемпель и карандаш подняты по
+ * светлоте, чтобы держать контраст не ниже 4.5:1 на тёмной поверхности.
+ */
+:root[data-theme="dark"] {
+  --paper: #11151c;
+  --paper-deep: #0b0e14;
+  --card: #1a202b;
+  --guide: #232b38;
+  --guide-active: #2b3444;
+  --rule: #3a4455;
+  --rule-soft: #2b3444;
+
+  --ink: #e9edf3;
+  --ink-2: #bcc5d2;
+  --ink-3: #98a3b4;
+
+  --stamp: #8aa5ff;
+  --stamp-deep: #a8bcff;
+  --stamp-wash: #232c44;
+  --pencil: #ff8a6e;
+  --pencil-box: #ff7a5c;
+  --pencil-wash: #3a2219;
+  --medium: #d8c98a;
+
+  --cold: #7f95e8;
+  --warm: #ef8a72;
+
+  --shadow-ink: 0, 0, 0;
+  --sheen-color: rgba(233, 237, 243, 0.09);
 }

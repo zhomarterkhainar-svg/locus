@@ -61,10 +61,19 @@ const initial: ProfileState = {
 type Action =
   | { type: "reset" }
   | { type: "event"; name: string; data: any }
+  | { type: "reconnecting"; attempt: number }
   | { type: "connection_lost" };
 
 function reducer(state: ProfileState, action: Action): ProfileState {
   if (action.type === "reset") return initial;
+  if (action.type === "reconnecting") {
+    if (state.phase === "done") return state;
+    return {
+      ...state,
+      error: "Сервер не ответил сразу — вероятно, бесплатный инстанс просыпается после простоя. Переподключаемся…",
+      fatal: false,
+    };
+  }
   if (action.type === "connection_lost") {
     if (state.phase === "done") return state;
     return { ...state, phase: "failed", error: "Соединение с сервером прервалось. Профиль мог собраться не полностью.", fatal: false };
@@ -163,27 +172,54 @@ export function useProfileStream(qid: string, nonce: number, fresh: boolean) {
     dispatch({ type: "reset" });
     if (!qid) return;
     const url = apiUrl(`/api/profile/${encodeURIComponent(qid)}/stream${fresh ? "?fresh=1" : ""}`);
-    const es = new EventSource(url);
-    esRef.current = es;
     let finished = false;
-    for (const name of EVENTS) {
-      es.addEventListener(name, (ev) => {
-        const data = JSON.parse((ev as MessageEvent).data);
-        dispatch({ type: "event", name, data });
-        if (name === "done") {
-          finished = true;
-          es.close();
+    let attempt = 0;
+    let retry: number | undefined;
+
+    const open = () => {
+      const es = new EventSource(url);
+      esRef.current = es;
+      for (const name of EVENTS) {
+        es.addEventListener(name, (ev) => {
+          // Осторожно: у потока есть собственное событие `error` (сервер сообщает о сбое сборки),
+          // и оно совпадает по имени со встроенным событием обрыва соединения у EventSource.
+          // У второго нет поля data, и разбор строки "undefined" раньше валил обработчик.
+          const raw = (ev as MessageEvent).data;
+          if (typeof raw !== "string") return;
+          let data: any;
+          try {
+            data = JSON.parse(raw);
+          } catch {
+            return;
+          }
+          attempt = 0;
+          dispatch({ type: "event", name, data });
+          if (name === "done") {
+            finished = true;
+            es.close();
+          }
+        });
+      }
+      es.onerror = () => {
+        if (finished) return;
+        es.close();
+        // Бесплатный инстанс просыпается до минуты и отвечает 502, пока поднимается. Один обрыв
+        // на старте - это норма, поэтому пробуем ещё дважды, прежде чем показывать ошибку.
+        if (attempt < 2) {
+          attempt += 1;
+          dispatch({ type: "reconnecting", attempt });
+          retry = window.setTimeout(open, 2500 * attempt);
+          return;
         }
-      });
-    }
-    es.onerror = () => {
-      if (finished) return;
-      es.close();
-      dispatch({ type: "connection_lost" });
+        dispatch({ type: "connection_lost" });
+      };
     };
+
+    open();
     return () => {
       finished = true;
-      es.close();
+      window.clearTimeout(retry);
+      esRef.current?.close();
     };
   }, [qid, nonce, fresh]);
 
