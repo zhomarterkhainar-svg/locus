@@ -1,26 +1,36 @@
-name: Keep Space awake
+name: Keep backend awake
 
-# Бесплатный Space на Hugging Face засыпает после 48 часов без посещений.
-# Сайт должен работать до объявления результатов, поэтому раз в 6 часов открываем /api/health.
-# Нужна переменная HF_SPACE_URL, например https://username-candid-ai.hf.space
+# Бесплатный инстанс Render засыпает после 15 минут без запросов, бесплатный Space на Hugging Face -
+# после 48 часов. Сервис должен отвечать быстро до объявления результатов, поэтому раз в 10 минут
+# открываем /api/health. Задайте переменные репозитория (Settings -> Variables):
+#   RENDER_URL   - https://candid-ai-api.onrender.com
+#   HF_SPACE_URL - https://<логин>-candid-ai.hf.space (если используется и Space)
 on:
   schedule:
-    - cron: "17 */6 * * *"
+    - cron: "*/10 * * * *"
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     env:
-      URL: ${{ vars.HF_SPACE_URL }}
+      RENDER_URL: ${{ vars.RENDER_URL }}
+      HF_SPACE_URL: ${{ vars.HF_SPACE_URL }}
     steps:
       - name: Пинг
-        if: env.URL != ''
         run: |
-          for i in 1 2 3 4 5; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 "$URL/api/health" || true)
-            echo "попытка $i: $code"
-            [ "$code" = "200" ] && exit 0
-            sleep 60
-          done
-          echo "Space не ответил 200"; exit 1
+          ping_one() {
+            [ -z "$1" ] && return 0
+            for i in 1 2 3 4 5; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 90 "$1/api/health" || true)
+              echo "$1 попытка $i: $code"
+              [ "$code" = "200" ] && return 0
+              sleep 30
+            done
+            echo "$1 не ответил 200"
+            return 1
+          }
+          fail=0
+          ping_one "$RENDER_URL" || fail=1
+          ping_one "$HF_SPACE_URL" || fail=1
+          exit $fail

@@ -1,12 +1,13 @@
+# Рантайм без PyTorch: модели считаются в ONNX Runtime, поэтому образ весит ~400 МБ вместо ~3 ГБ
+# и помещается в бесплатный инстанс Render (512 МБ RAM).
 fastapi>=0.115
 uvicorn[standard]>=0.30
 httpx>=0.27
 pydantic-settings>=2.4
 pillow>=10.4
 numpy>=1.26
-imagehash>=4.3
+onnxruntime>=1.18
+tokenizers>=0.20
 rapidfuzz>=3.9
 selectolax>=0.3.21
 python-dateutil>=2.9
-open_clip_torch>=2.26
-ultralytics>=8.3

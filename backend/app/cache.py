@@ -1,7 +1,11 @@
-"""Небольшой дисковый кэш JSON для медленных внешних данных (OSM, климат, маршруты).
+"""Кэш медленных внешних данных (OSM, климат, маршруты): диск плюс общий слой в Supabase.
 
 Кэш раскрыт в README: повторные сборки берут границу кампуса и климат отсюда, а интерфейс
 показывает, что данные взяты из кэша. Чужие фото сюда не попадают.
+
+Слоя два. Локальный - файлы в CACHE_DIR, мгновенный, но пропадает при перезапуске бесплатного
+инстанса. Общий - таблица kv_cache в Supabase: переживает перезапуск и работает сразу для всех
+инстансов, поэтому холодный старт не заставляет заново ждать Overpass по минуте.
 """
 from __future__ import annotations
 
@@ -62,3 +66,27 @@ def put(namespace: str, key: str, value: Any, target: Path | None = None) -> Non
         tmp.replace(p)
     except OSError:
         pass
+
+
+async def get_shared(namespace: str, key: str, ttl_s: float, seed: bool = False) -> tuple[Any, float] | None:
+    """Сначала диск и seed-кэш репозитория, затем общий кэш Supabase (с прогревом диска)."""
+    hit = get(namespace, key, ttl_s, seed=seed)
+    if hit is not None:
+        return hit
+    from . import store
+
+    if not store.enabled():
+        return None
+    shared = await store.get_kv(namespace, key, ttl_s)
+    if shared is None:
+        return None
+    put(namespace, key, shared[0])
+    return shared
+
+
+async def put_shared(namespace: str, key: str, value: Any) -> None:
+    put(namespace, key, value)
+    from . import store
+
+    if store.enabled():
+        await store.put_kv(namespace, key, value)

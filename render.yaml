@@ -1,0 +1,57 @@
+# Backend Candid AI на Render (Blueprint). Развернуть: Render -> New -> Blueprint -> этот репозиторий.
+#
+# Бесплатный инстанс - 512 МБ памяти, поэтому сервис работает на ONNX Runtime без PyTorch:
+# веса всех моделей занимают ~100 МБ, старт занимает секунды. Фронтенд живёт отдельно на Vercel,
+# домен фронтенда нужно вписать в CORS_ORIGINS.
+#
+# Секреты (Render -> Environment) задаются вручную и в репозиторий не попадают:
+#   GEMINI_API_KEY   - описание кампуса со сносками (без него показываются выдержки из источников)
+#   FLICKR_API_KEY   - дополнительный источник фото (необязательно)
+#   SUPABASE_URL     - https://<проект>.supabase.co
+#   SUPABASE_KEY     - service_role ключ проекта Supabase
+services:
+  - type: web
+    name: candid-ai-api
+    runtime: python
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: |
+      pip install --no-cache-dir -r backend/requirements.txt
+      python scripts/download_models.py
+    startCommand: uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips '*'
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      # Бесплатный инстанс - половина ядра: два потока ONNX дают лучшее время на кадр.
+      - key: ONNX_THREADS
+        value: "2"
+      - key: ONNX_MEM_ARENA
+        value: "false"
+      - key: CACHE_DIR
+        value: /tmp/candid-cache
+      # Прогрев карт при старте на слабом инстансе только мешает первым запросам:
+      # частые вузы и так лежат в backend/seed_cache и в общем кэше Supabase.
+      - key: PREWARM
+        value: "false"
+      - key: TOTAL_BUDGET
+        value: "12"
+      - key: MAX_DOWNLOADS
+        value: "90"
+      - key: DOWNLOAD_CONCURRENCY
+        value: "24"
+      # Сюда добавьте домен своего фронтенда на Vercel через запятую.
+      - key: CORS_ORIGINS
+        value: https://candid-ai.vercel.app,http://localhost:5173
+      - key: CONTACT
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: FLICKR_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false

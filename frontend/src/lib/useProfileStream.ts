@@ -2,6 +2,7 @@ import { useEffect, useReducer, useRef } from "react";
 import type {
   Box, CampusView, ContextView, Counters, DescriptionView, FactView, PhotoView, RejectedView, SourceStatus, StageKey, StageStatus, University,
 } from "./types";
+import { apiUrl } from "./config";
 
 export type ProfileState = {
   phase: "connecting" | "building" | "done" | "failed";
@@ -22,6 +23,9 @@ export type ProfileState = {
   error: string | null;
   fatal: boolean;
   totalMs: number | null;
+  readyMs: number | null;
+  firstPhotoMs: number | null;
+  readyWhy: string;
   lastT: number;
   calibrator: { trained: boolean; note: string } | null;
   model: string;
@@ -46,6 +50,9 @@ const initial: ProfileState = {
   error: null,
   fatal: false,
   totalMs: null,
+  readyMs: null,
+  firstPhotoMs: null,
+  readyWhy: "",
   lastT: 0,
   calibrator: null,
   model: "",
@@ -91,8 +98,17 @@ function reducer(state: ProfileState, action: Action): ProfileState {
       }
       return { ...s, photos, order };
     }
+    case "ready":
+      return { ...s, readyMs: data.ms as number, firstPhotoMs: (data.first_photo_ms ?? null) as number | null, readyWhy: (data.why ?? "") as string };
     case "photo_update": {
       const photos = { ...s.photos };
+      // Карта кампуса пришла позже фото: часть снимков уезжает из фонда в «изъято».
+      if (Array.isArray(data.remove)) {
+        const gone = new Set(data.remove as string[]);
+        const kept = { ...s.photos };
+        for (const id of gone) delete kept[id];
+        return { ...s, photos: kept, order: s.order.filter((id) => !gone.has(id)) };
+      }
       const p = data.photo as PhotoView;
       const replaces = data.replaces as string;
       let order = s.order;
@@ -123,13 +139,21 @@ function reducer(state: ProfileState, action: Action): ProfileState {
     case "error":
       return { ...s, error: data.message, fatal: Boolean(data.fatal) };
     case "done":
-      return { ...s, phase: s.fatal ? "failed" : "done", totalMs: data.total_ms, calibrator: data.calibrator ?? null, model: data.model ?? "" };
+      return {
+        ...s,
+        phase: s.fatal ? "failed" : "done",
+        totalMs: data.total_ms,
+        readyMs: s.readyMs ?? (data.ready_ms ?? null),
+        firstPhotoMs: s.firstPhotoMs ?? (data.first_photo_ms ?? null),
+        calibrator: data.calibrator ?? null,
+        model: data.model ?? "",
+      };
     default:
       return s;
   }
 }
 
-const EVENTS = ["meta", "stage", "university", "campus", "context", "source", "photos", "photo_update", "boxes", "rejected", "progress", "facts", "description", "notice", "error", "done"];
+const EVENTS = ["meta", "stage", "university", "campus", "context", "source", "photos", "photo_update", "boxes", "rejected", "progress", "ready", "facts", "description", "notice", "error", "done"];
 
 export function useProfileStream(qid: string, nonce: number, fresh: boolean) {
   const [state, dispatch] = useReducer(reducer, initial);
@@ -138,7 +162,7 @@ export function useProfileStream(qid: string, nonce: number, fresh: boolean) {
   useEffect(() => {
     dispatch({ type: "reset" });
     if (!qid) return;
-    const url = `/api/profile/${encodeURIComponent(qid)}/stream${fresh ? "?fresh=1" : ""}`;
+    const url = apiUrl(`/api/profile/${encodeURIComponent(qid)}/stream${fresh ? "?fresh=1" : ""}`);
     const es = new EventSource(url);
     esRef.current = es;
     let finished = false;

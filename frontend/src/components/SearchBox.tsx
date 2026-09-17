@@ -21,12 +21,23 @@ export function SearchBox({ size = "large", initial = "", autoFocus = false, onR
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [pending, setPending] = useState(false);
+  // Бесплатный инстанс API засыпает после простоя: честно предупреждаем, а не молчим со спиннером.
+  const [slow, setSlow] = useState(false);
   const navigate = useNavigate();
   const listId = useId();
   const abort = useRef<AbortController | null>(null);
   const timer = useRef<number | undefined>(undefined);
   const skipNext = useRef(false);
   const submitted = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!pending) {
+      setSlow(false);
+      return;
+    }
+    const id = window.setTimeout(() => setSlow(true), 4500);
+    return () => window.clearTimeout(id);
+  }, [pending]);
 
   useEffect(() => {
     if (skipNext.current) {
@@ -80,10 +91,11 @@ export function SearchBox({ size = "large", initial = "", autoFocus = false, onR
     window.clearTimeout(timer.current);
     setOpen(false);
     setItems([]);
-    setPending(false);
+    setPending(true);
     abort.current?.abort();
     onResult?.(null, true);
     const res = await searchUniversities(q);
+    setPending(false);
     if (onPick) {
       onResult?.(null, false);
       if (res.candidates.length) {
@@ -152,6 +164,11 @@ export function SearchBox({ size = "large", initial = "", autoFocus = false, onR
           {submitLabel}
         </button>
       </div>
+      {slow ? (
+        <p className="search__slow" role="status">
+          Сервис просыпается после простоя, первый запрос может занять до минуты. Дальше поиск идёт за секунду.
+        </p>
+      ) : null}
       {open ? (
         <ul className="search__list" id={listId} role="listbox">
           {items.map((c, i) => (

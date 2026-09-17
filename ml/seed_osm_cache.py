@@ -26,19 +26,25 @@ EXTRA = ["Astana Medical University", "Almaty University of Power Engineering an
 
 
 async def main() -> None:
-    names = list(dict.fromkeys(PREWARM_QUERIES + [q for q, _ in QUERIES] + UNIVERSITIES + EXTRA))
+    bench = [q if isinstance(q, str) else q[0] for q in QUERIES]
+    names = list(dict.fromkeys(PREWARM_QUERIES + bench + UNIVERSITIES + EXTRA))
     ok = 0
+    print(f"вузов в списке: {len(names)}", flush=True)
     for name in names:
         try:
             res = await wikidata.search(name)
             if not res["candidates"]:
+                print(f"пропуск {name}: Wikidata ничего не вернула ({res.get('status')})", flush=True)
+                await asyncio.sleep(2)
                 continue
             uni = await wikidata.get_university(res["candidates"][0]["qid"])
             if uni.lat is None:
+                print(f"пропуск {name}: нет координат в Wikidata", flush=True)
                 continue
             target = cache.seed_path("osm", uni.qid)
             if target.exists():
                 ok += 1
+                print(f"уже есть {uni.qid} {uni.label}", flush=True)
                 continue
             t0 = time.time()
             data = await asyncio.wait_for(osm._load_raw(uni), timeout=240)

@@ -91,7 +91,7 @@ def commons_part(c: Commons, group: str, key: str, spec: dict, limit: int, skip:
     return rows
 
 
-def download_rows(c: Commons, rows: list[dict], workers: int = 6) -> list[dict]:
+def download_rows(c: Commons, rows: list[dict], workers: int = 10) -> list[dict]:
     def job(row: dict) -> dict | None:
         digest = hashlib.sha1(row["url"].encode()).hexdigest()[:16]
         path = OUT / row["group"] / row["label"].replace(":", "_") / f"{digest}.jpg"
@@ -155,6 +155,7 @@ def main() -> None:
     ap.add_argument("--no-places", action="store_true")
     ap.add_argument("--limit", type=int, default=SPEC["per_class_limit"])
     ap.add_argument("--groups", default=",".join(GROUPS))
+    ap.add_argument("--workers", type=int, default=10, help="параллельных загрузок миниатюр Commons")
     args = ap.parse_args()
     random.seed(7)
     c = Commons()
@@ -167,7 +168,7 @@ def main() -> None:
         taken: set[str] = set()  # один файл в группе получает одну метку
         for key, spec in SPEC[group].items():
             part = commons_part(c, group, key, spec, limit, skip if not key.startswith("trash:") else set(), banned, taken)
-            got = download_rows(c, part)
+            got = download_rows(c, part, args.workers)
             print(f"commons {group}/{key}: {len(got)} фото")
             rows += got
             for p in spec.get("places365", []):

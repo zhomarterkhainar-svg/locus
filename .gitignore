@@ -2,8 +2,8 @@ __pycache__/
 *.pyc
 .env
 .venv/
-models/*.pt
-models/*.onnx
+models/*
+!models/.gitkeep
 node_modules/
 frontend/dist/
 .pytest_cache/
@@ -16,6 +16,6 @@ backend/tests/eval_images/*.jpg
 backend/tests/images/*.jpg
 
 # данные обучения и бенчмарка (фото не храним в репозитории)
-data/
+data/*
 !data/.gitkeep
 frontend/tsconfig.tsbuildinfo

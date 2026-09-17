@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from typing import Any
 from urllib.parse import quote
 
@@ -255,7 +256,46 @@ async def search(query: str) -> dict[str, Any]:
     return {"query": query, "status": status, "candidates": candidates, "suggestion": suggestion}
 
 
+# Карточка вуза живёт полчаса: между поиском и открытием профиля это экономит секунду-полторы,
+# а на повторных открытиях - ещё больше. Одновременные запросы одного вуза сливаются в одну задачу.
+_UNI_CACHE: dict[str, tuple[float, University]] = {}
+_UNI_INFLIGHT: dict[str, asyncio.Task] = {}
+UNI_TTL_S = 1800.0
+
+
 async def get_university(qid: str, geocode: bool = True) -> University:
+    hit = _UNI_CACHE.get(qid)
+    if hit and time.monotonic() - hit[0] < UNI_TTL_S:
+        return hit[1]
+    task = _UNI_INFLIGHT.get(qid)
+    if task is None or task.done():
+        task = asyncio.create_task(_load_university(qid, geocode))
+        _UNI_INFLIGHT[qid] = task
+        task.add_done_callback(lambda t, q=qid: _UNI_INFLIGHT.pop(q, None) if _UNI_INFLIGHT.get(q) is t else None)
+    uni = await asyncio.shield(task)
+    _UNI_CACHE[qid] = (time.monotonic(), uni)
+    if len(_UNI_CACHE) > 500:
+        _UNI_CACHE.clear()
+    return uni
+
+
+def prefetch_university(qid: str) -> None:
+    """Прогрев карточки сразу после поиска: пока пользователь смотрит выдачу, она уже грузится."""
+    if _UNI_CACHE.get(qid) or _UNI_INFLIGHT.get(qid):
+        return
+    task = asyncio.create_task(_load_university(qid, True))
+    _UNI_INFLIGHT[qid] = task
+
+    def _done(t: asyncio.Task, q: str = qid) -> None:
+        if _UNI_INFLIGHT.get(q) is t:
+            _UNI_INFLIGHT.pop(q, None)
+        if not t.cancelled() and t.exception() is None:
+            _UNI_CACHE[q] = (time.monotonic(), t.result())
+
+    task.add_done_callback(_done)
+
+
+async def _load_university(qid: str, geocode: bool = True) -> University:
     if not re.fullmatch(r"Q\d+", qid):
         raise SourceError("неверный идентификатор Wikidata")
     ents = await _wbgetentities([qid], "labels|descriptions|aliases|claims|sitelinks", timeout=get_timeout())

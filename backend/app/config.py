@@ -16,17 +16,18 @@ class Settings(BaseSettings):
     flickr_api_key: str = ""
     contact: str = "https://github.com/zhomarterkhainar-svg/locus"
 
-    # OpenCLIP: архитектура и веса. CLIP_PRETRAINED — тег open_clip (скачивается с Hugging Face Hub при сборке образа),
-    # CLIP_WEIGHTS — локальный файл, используется, если тег не задан или недоступен.
-    clip_arch: str = "ViT-B-32-quickgelu"
-    clip_pretrained: str = ""  # например laion2b_s34b_b79k вместе с CLIP_ARCH=ViT-B-32; головы тогда надо переобучить
-    clip_fallback_arch: str = "ViT-B-32-quickgelu"
-    clip_weights: str = "models/vit_b_32-quickgelu-laion400m_e32.pt"
+    # ---------- модели (ONNX Runtime, без torch) ----------
+    # clip_model: ключ из backend/app/vision/onnx_backend.py MODELS.
+    # clip_vitb32 - CLIP ViT-B/32 int8: 15 мс на фото на 4 потоках (замеры в ml/BENCHMARK.md).
+    clip_model: str = "clip_vitb32"
+    models_dir: str = "models"
+    prompts_dir: str = "ml/prompts"
     heads_dir: str = "ml/heads"
-    yolo_weights: str = "models/yolo11s.pt"
-    torch_threads: int = 2
+    onnx_threads: int = 0  # 0 - по числу ядер
+    onnx_mem_arena: bool = True  # на инстансе с 512 МБ выключаем: MEM_ARENA=false
 
-    rate_limit_per_min: int = 8
+    # ---------- ограничения и кэш ----------
+    rate_limit_per_min: int = 12
     cache_ttl_s: int = 6 * 3600
     cache_dir: str = "/tmp/candid-cache"
     seed_cache_dir: str = "backend/seed_cache"  # заранее собранные карты OSM частых вузов (раскрыто в README)
@@ -35,18 +36,33 @@ class Settings(BaseSettings):
     context_cache_ttl_s: int = 14 * 24 * 3600
     prewarm: bool = True
 
-    # Бюджеты времени (секунды)
-    resolve_timeout: float = 7.0
-    source_timeout: float = 11.0
-    osm_timeout: float = 9.0
-    osm_background_timeout: float = 200.0  # публичные зеркала Overpass в часы пик отвечают минутами
-    context_timeout: float = 8.0
-    download_timeout: float = 6.0
-    total_budget: float = 27.0
+    # ---------- Supabase (общий кэш профилей, карт и отметок между инстансами) ----------
+    supabase_url: str = ""
+    supabase_key: str = ""  # service_role, только на сервере
+    supabase_timeout: float = 3.0
 
-    max_downloads: int = 170
-    download_concurrency: int = 20
-    max_image_bytes: int = 6_000_000
+    # ---------- бюджеты времени (секунды) ----------
+    # Цель: полезный профиль за 10 секунд. Источники, не успевшие ответить, отменяются,
+    # интерфейс об этом сообщает, а догрузка продолжается в фоне и попадает в кэш.
+    resolve_timeout: float = 4.0
+    source_timeout: float = 6.0
+    osm_timeout: float = 3.0
+    osm_background_timeout: float = 200.0  # публичные зеркала Overpass в часы пик отвечают минутами
+    context_timeout: float = 5.0
+    download_timeout: float = 4.0
+    total_budget: float = 10.0
+    facts_budget: float = 3.0
+    source_grace: float = 4.0  # отсрочка источникам, если проверенных фото почти нет
+    first_paint_target: float = 3.5  # к этому моменту стараемся показать первые подтверждённые фото
+    ready_min_photos: int = 6  # столько подтверждённых фото считаем полезным профилем
+    ready_min_categories: int = 2
+    analyze_chunk: int = 12  # размер партии «скачали - посчитали - показали»
+
+    max_downloads: int = 120
+    download_concurrency: int = 32
+    max_image_bytes: int = 4_000_000
+    analyze_side: int = 512  # до какого размера ужимаем кадр в памяти перед анализом
+    max_detect: int = 10  # сколько фото общежитий отдаём детектору предметов
 
     overpass_urls: list[str] = [
         "https://overpass-api.de/api/interpreter",
@@ -59,6 +75,8 @@ class Settings(BaseSettings):
     climate_url: str = "https://archive-api.open-meteo.com/v1/archive"
 
     frontend_dist: str = "frontend/dist"
+    # Домены фронтенда, которым разрешён доступ к API (Vercel + локальная разработка).
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     offline_fixtures: str = ""  # путь к фикстурам для офлайн-режима тестов
 
     def path(self, value: str) -> Path:
@@ -66,8 +84,16 @@ class Settings(BaseSettings):
         return p if p.is_absolute() else ROOT / p
 
     @property
+    def origins(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
     def user_agent(self) -> str:
-        return f"CandidAI/0.1 (LOCUS Hackathon 2026 case 1; +{self.contact})"
+        return f"CandidAI/1.0 (LOCUS Hackathon 2026 case 1; +{self.contact})"
+
+    @property
+    def supabase_enabled(self) -> bool:
+        return bool(self.supabase_url and self.supabase_key)
 
 
 @lru_cache

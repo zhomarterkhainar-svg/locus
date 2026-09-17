@@ -34,7 +34,7 @@ jobs:
     env:
       STAGES: ${{ inputs.stages || 'heads,calibrator,osm,benchmark' }}
       CONTACT: https://github.com/${{ github.repository }}
-      TORCH_THREADS: "4"
+      ONNX_THREADS: "4"
       PREWARM: "false"
       CACHE_DIR: ${{ github.workspace }}/data/cache
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -48,16 +48,14 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - name: Зависимости
-        run: |
-          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-          pip install -r backend/requirements.txt scikit-learn
+        run: pip install -r backend/requirements.txt -r backend/requirements-dev.txt scikit-learn
       - name: Кэш моделей
         uses: actions/cache@v4
         with:
           path: models
-          key: models-${{ hashFiles('scripts/download_models.py') }}
+          key: models-${{ hashFiles('backend/app/vision/onnx_backend.py') }}
       - name: Модели
-        run: python scripts/download_models.py
+        run: python scripts/download_models.py --text
       - name: Кэш данных
         uses: actions/cache@v4
         with:
@@ -101,7 +99,10 @@ jobs:
       - name: Бенчмарк без кэша
         if: contains(env.STAGES, 'benchmark')
         continue-on-error: true
-        run: CACHE_DIR=/tmp/bench-cache SEED_CACHE_DIR=/nonexistent python ml/benchmark.py
+        run: |
+          CACHE_DIR=/tmp/bench-cache SEED_CACHE_DIR=/nonexistent PREWARM=false             uvicorn app.main:app --app-dir backend --port 8000 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8000/api/health && break; sleep 3; done
+          python ml/benchmark.py --base http://127.0.0.1:8000
 
       - name: Артефакты (манифест данных, разметка, лист проверки)
         if: always()
@@ -121,7 +122,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ml/heads ml/calibrator_weights.json backend/seed_cache
+          git add ml/heads ml/prompts ml/calibrator_weights.json backend/seed_cache
           git add ml/REPORT.md ml/BENCHMARK.md 2>/dev/null || true
           if git diff --cached --quiet; then echo "нет изменений"; exit 0; fi
           git commit -m "ML: обученные головы, калибратор и бенчмарк (CI ${{ github.run_id }})"

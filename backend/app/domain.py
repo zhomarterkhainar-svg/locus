@@ -4,14 +4,22 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass, field
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlsplit, urlunsplit
+
+
+# Параметры-метки, которые не меняют саму картинку: их выбрасываем, остальные оставляем,
+# иначе все изображения сайтов вида /image.php?id=42 слиплись бы в один «дубликат».
+TRACKING_PARAMS = {"utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
+                   "fbclid", "gclid", "yclid", "_", "v", "ver", "t", "ts", "cache", "rand"}
 
 
 def url_key(url: str) -> str:
-    """Ключ URL без query-меток и протокола, чтобы ловить одну картинку по разным ссылкам."""
+    """Ключ URL без протокола и меток слежения, чтобы ловить одну картинку по разным ссылкам."""
     parts = urlsplit(url)
-    path = parts.path
-    return hashlib.sha1(f"{parts.netloc.lower()}{path}".encode()).hexdigest()[:16]
+    query = "&".join(sorted(
+        f"{k}={v}" for k, v in parse_qsl(parts.query, keep_blank_values=False)
+        if k.lower() not in TRACKING_PARAMS))
+    return hashlib.sha1(f"{parts.netloc.lower()}{parts.path}?{query}".encode()).hexdigest()[:16]
 
 
 @dataclass

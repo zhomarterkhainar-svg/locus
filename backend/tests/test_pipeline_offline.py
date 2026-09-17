@@ -103,7 +103,8 @@ async def test_full_profile_offline():
         def upload(request):
             name = request.url.path.rsplit("/", 1)[-1]
             if name == "dormitory__Am.jpg":
-                name = "dormitory__File_Amasloĝejo_en_Ĉajanda_minejo_02_jpg.jpg"
+                # Кадр комнаты общежития, на котором видно кровать: на нём проверяется подсчёт фактов.
+                name = "dormitory__File_Amasloĝejo_en_Ĉajanda_minejo_01_jpg.jpg"
             return Response(200, content=image_bytes(name), headers={"content-type": "image/jpeg"})
         r.get(re.compile(r"https://upload\.test/.*")).mock(side_effect=upload)
 

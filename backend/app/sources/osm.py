@@ -249,7 +249,7 @@ async def _load_raw(uni: University) -> dict[str, Any]:
     s = get_settings()
     q = build_query(uni, uni.lat, uni.lon, 1400)
     data = compact(await _race_mirrors(q, s.osm_background_timeout))
-    cache.put("osm", uni.qid, data)
+    await cache.put_shared("osm", uni.qid, data)
     return data
 
 
@@ -261,7 +261,16 @@ def _from_raw(data: dict[str, Any], uni: University, age: float | None) -> Campu
 
 
 def cached_campus(uni: University) -> Campus | None:
+    """Только локальный и seed-кэш: синхронная проверка без похода в сеть."""
     hit = cache.get("osm", uni.qid, get_settings().osm_cache_ttl_s, seed=True)
+    if hit is None:
+        return None
+    return _from_raw(hit[0], uni, hit[1])
+
+
+async def cached_campus_shared(uni: University) -> Campus | None:
+    """Локальный кэш, seed-кэш репозитория и общий кэш Supabase."""
+    hit = await cache.get_shared("osm", uni.qid, get_settings().osm_cache_ttl_s, seed=True)
     if hit is None:
         return None
     return _from_raw(hit[0], uni, hit[1])
@@ -287,7 +296,7 @@ def background_task(uni: University) -> asyncio.Task:
 async def fetch_campus(uni: University, wait_s: float | None = None) -> Campus:
     if uni.lat is None:
         return Campus()
-    hit = cached_campus(uni)
+    hit = await cached_campus_shared(uni)
     if hit is not None:
         return hit
     task = background_task(uni)

@@ -13,10 +13,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: "Установка лёгких зависимостей (без torch, тесты не грузят модели)"
+      - name: Зависимости
+        run: pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+      - name: Кэш моделей ONNX
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: models-${{ hashFiles('backend/app/vision/onnx_backend.py') }}
+      - name: Модели и проверочные фото
         run: |
-          grep -vE "open_clip_torch|ultralytics" backend/requirements.txt > /tmp/req.txt
-          pip install -r /tmp/req.txt pytest pytest-asyncio respx scikit-learn
+          python scripts/download_models.py
+          python ml/fetch_eval_images.py || echo "часть проверочных фото не скачалась, сквозной тест пропустится"
       - name: Тесты
         working-directory: backend
         run: pytest -q

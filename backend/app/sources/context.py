@@ -63,7 +63,7 @@ async def climate(lat: float, lon: float) -> dict[str, Any]:
     s = get_settings()
     y0, y1 = _years()
     key = f"{lat:.2f},{lon:.2f},{y0}-{y1}"
-    hit = cache.get("climate", key, s.context_cache_ttl_s)
+    hit = await cache.get_shared("climate", key, s.context_cache_ttl_s)
     if hit is not None:
         return {**hit[0], "from_cache": True}
     params = {
@@ -83,7 +83,7 @@ async def climate(lat: float, lon: float) -> dict[str, Any]:
         "source": "Open-Meteo Historical Weather API (ERA5)",
         "url": f"https://open-meteo.com/en/docs/historical-weather-api#latitude={lat:.2f}&longitude={lon:.2f}",
     }
-    cache.put("climate", key, result)
+    await cache.put_shared("climate", key, result)
     return {**result, "from_cache": False}
 
 
@@ -91,7 +91,7 @@ async def route(a: Point, b: Point, mode: str) -> dict[str, Any] | None:
     """Маршрут OSRM (FOSSGIS, данные OSM). mode: foot | car."""
     s = get_settings()
     key = f"{mode}:{a[0]:.5f},{a[1]:.5f};{b[0]:.5f},{b[1]:.5f}"
-    hit = cache.get("route", key, s.context_cache_ttl_s)
+    hit = await cache.get_shared("route", key, s.context_cache_ttl_s)
     if hit is not None:
         return hit[0]
     base = s.osrm_foot_url if mode == "foot" else s.osrm_car_url
@@ -109,7 +109,7 @@ async def route(a: Point, b: Point, mode: str) -> dict[str, Any] | None:
         "source_url": f"https://www.openstreetmap.org/directions?engine=fossgis_osrm_{'foot' if mode == 'foot' else 'car'}"
                       f"&route={a[0]:.5f}%2C{a[1]:.5f}%3B{b[0]:.5f}%2C{b[1]:.5f}",
     }
-    cache.put("route", key, result)
+    await cache.put_shared("route", key, result)
     return result
 
 

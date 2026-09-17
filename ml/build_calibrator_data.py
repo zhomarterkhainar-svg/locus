@@ -113,11 +113,20 @@ async def main() -> None:
     # 1. файлы дерева категорий каждого вуза
     files: dict[str, list[dict]] = {}
     for uni in unis:
-        titles = [t for t, _ in c.files_in_tree(uni.commons_category, 2, 70, {"logo", "map", "people", "portrait", "svg"})]
-        infos = c.imageinfo(titles, width=330)
+        # Один недоступный вуз (перегруженный API, пустая категория) не должен ронять весь сбор.
+        try:
+            titles = [t for t, _ in c.files_in_tree(uni.commons_category, 2, 70, {"logo", "map", "people", "portrait", "svg"})]
+            infos = c.imageinfo(titles, width=330)
+        except Exception as e:  # noqa: BLE001
+            log(f"{uni.label}: пропуск, Commons не ответил ({type(e).__name__}: {e})")
+            files[uni.qid] = []
+            time.sleep(5)
+            continue
         lead = f"File:{uni.image}" if uni.image else None
         files[uni.qid] = [p for t, p in infos.items() if t != lead and p["imageinfo"][0].get("mime") in commons_src.IMAGE_MIME]
         log(f"{uni.label}: {len(files[uni.qid])} файлов")
+    unis = [u for u in unis if files.get(u.qid)]
+    log(f"вузов с файлами: {len(unis)}")
 
     # 2. изображения и эмбеддинги (каждый файл один раз)
     all_pages = {p["title"]: p for ps in files.values() for p in ps}

@@ -1,39 +1,50 @@
-"""Скачивает веса моделей в папку models/.
+"""Скачивает веса моделей в каталог models/ (вызывается при сборке образа и локально).
 
-Используются только публичные релизы на GitHub:
-- OpenCLIP ViT-B-32 (LAION-400M), MIT: github.com/mlfoundations/open_clip
-- Ultralytics YOLO11s (COCO), AGPL-3.0: github.com/ultralytics/assets
+Все веса открытые, в формате ONNX:
+- CLIP ViT-B/32 (OpenAI), int8, экспорт Xenova: huggingface.co/Xenova/clip-vit-base-patch32
+- MobileCLIP-S0 (Apple), запасная модель: huggingface.co/Xenova/mobileclip_s0
+- YOLOv10-nano (COCO), AGPL-3.0: huggingface.co/onnx-community/yolov10n
+
+python scripts/download_models.py            # модель по умолчанию + детектор
+python scripts/download_models.py --all      # ещё и запасную модель CLIP
+python scripts/download_models.py --text     # ещё и текстовый энкодер (нужен для поиска по фото
+                                             # своими словами, если нет ml/prompts/*.json)
 """
 from __future__ import annotations
 
-import hashlib
 import sys
-import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MODELS = {
-    "vit_b_32-quickgelu-laion400m_e32.pt": "https://github.com/mlfoundations/open_clip/releases/download/v0.2-weights/vit_b_32-quickgelu-laion400m_e32-46683a32.pt",
-    "yolo11s.pt": "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11s.pt",
-}
+sys.path.insert(0, str(ROOT / "backend"))
+
+from app.config import get_settings  # noqa: E402
+from app.vision import onnx_backend as ob  # noqa: E402
 
 
-def main() -> int:
-    target = ROOT / "models"
-    target.mkdir(exist_ok=True)
-    for name, url in MODELS.items():
-        path = target / name
-        if path.exists() and path.stat().st_size > 1_000_000:
-            print(f"ok   {name}")
-            continue
-        print(f"get  {name} <- {url}")
-        tmp = path.with_suffix(".part")
-        urllib.request.urlretrieve(url, tmp)
-        tmp.rename(path)
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
-        print(f"done {name} sha256:{digest}")
+def mb(p: Path) -> str:
+    return f"{p.stat().st_size / 1048576:.1f} МБ"
+
+
+def main(argv: list[str]) -> int:
+    want_all = "--all" in argv
+    want_text = "--text" in argv or want_all
+    s = get_settings()
+    keys = list(ob.MODELS) if want_all else [s.clip_model if s.clip_model in ob.MODELS else "clip_vitb32"]
+    d = ob.models_dir()
+    for key in keys:
+        spec = ob.MODELS[key]
+        parts = ["vision"] + (["text", "tokenizer"] if want_text else [])
+        for part in parts:
+            target = d / ob.local_name(spec, part)
+            p = ob.ensure_file(ob.HF.format(repo=spec.repo, file=ob.remote_file(spec, part)), target)
+            print(f"ok {p.name} ({mb(p)}) <- {spec.repo}/{ob.remote_file(spec, part)}")
+    det = d / ob.DETECTOR["local"]
+    p = ob.ensure_file(ob.HF.format(repo=ob.DETECTOR["repo"], file=ob.DETECTOR["file"]), det)
+    print(f"ok {p.name} ({mb(p)}) <- {ob.DETECTOR['repo']}/{ob.DETECTOR['file']}")
+    print(f"\nвсе веса в {d}")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main(sys.argv[1:]))

@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-FastAPI (Python) backend with the ML pipeline + React (Vite, TypeScript) frontend, shipped as one Docker container on Hugging Face Spaces. Chosen by the user.
+FastAPI (Python) backend with the ML pipeline on ONNX Runtime (no PyTorch) + React (Vite, TypeScript) frontend. Deployed as frontend on Vercel, API on Render, shared cache in Supabase; the same code also ships as a single Docker container (Hugging Face Spaces). Chosen by the user.
 
 ## Users
 
@@ -16,7 +16,7 @@ FastAPI (Python) backend with the ML pipeline + React (Vite, TypeScript) fronten
 
 ## Product Purpose
 
-Candid AI по названию университета за 30 секунд собирает проверенный визуальный профиль кампуса: находит фото в открытых источниках, проверяет принадлежность вузу, убирает дубли и мусор, раскладывает по категориям и читает фото, отвечая на конкретные вопросы (сколько кроватей в комнате общежития, есть ли бассейн). Успех: полезный профиль быстро, ни одного уверенно показанного чужого фото, честное «мало данных», где данных нет.
+Candid AI по названию университета за 3-6 секунд собирает проверенный визуальный профиль кампуса (кейс разрешает 30): находит фото в открытых источниках, проверяет принадлежность вузу, убирает дубли и мусор, раскладывает по категориям и читает фото, отвечая на конкретные вопросы (сколько кроватей в комнате общежития, есть ли бассейн). Успех: полезный профиль быстро, ни одного уверенно показанного чужого фото, честное «мало данных», где данных нет.
 
 ## Positioning
 

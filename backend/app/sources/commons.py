@@ -101,12 +101,15 @@ def _candidate(page: dict[str, Any], origin: str, prior: float, scope: str) -> C
     coords = (page.get("coordinates") or [{}])[0]
     title = page["title"].removeprefix("File:")
     thumb = info.get("thumburl") or info.get("url")
+    # Показываем превью 500 px, а для анализа качаем 330 px: модели хватает 224 px,
+    # а трафик и время скачивания партии падают примерно в два с половиной раза.
+    analyze = thumb.replace("/500px-", "/330px-") if thumb and "/500px-" in thumb else thumb
     return Candidate(
         source="commons",
         origin=origin,
         page_url=info.get("descriptionurl") or f"https://commons.wikimedia.org/wiki/{quote(page['title'])}",
         image_url=thumb,
-        download_url=thumb,
+        download_url=analyze,
         title=_meta(ext, "ObjectName") or re.sub(r"\.\w+$", "", title),
         description=_meta(ext, "ImageDescription")[:600],
         context="Категории Commons: " + _meta(ext, "Categories").replace("|", "; "),
@@ -172,7 +175,7 @@ async def fetch_city(uni: University) -> list[Candidate]:
     city = uni.city
     if not city or city.lat is None:
         return []
-    titles = await _geo_files(city.lat, city.lon, 2500, 40)
+    titles = await _geo_files(city.lat, city.lon, 2500, 24)
     infos = await _imageinfo(titles)
     out = []
     for page in infos.values():

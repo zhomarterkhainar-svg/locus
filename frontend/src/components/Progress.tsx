@@ -30,7 +30,9 @@ export function Progress({ state, onRebuild }: { state: ProfileState; onRebuild:
     return () => window.clearInterval(id);
   }, [building, state.replay]);
 
-  const elapsed = state.totalMs ?? (state.replay ? state.lastT : Math.max(state.lastT, now - started));
+  // Показываем то время, которое важно пользователю: когда профилем уже можно пользоваться.
+  // Полное время сборки (с фактами, картой и описанием) стоит рядом отдельной строкой.
+  const elapsed = state.readyMs ?? state.totalMs ?? (state.replay ? state.lastT : Math.max(state.lastT, now - started));
   const c = state.counters;
   const sources = Object.values(state.sources);
 
@@ -41,10 +43,15 @@ export function Progress({ state, onRebuild }: { state: ProfileState; onRebuild:
         <span className="progress__caption">
           {state.replay && state.cachedAt
             ? `собрано ${new Date(state.cachedAt * 1000).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}, показано из кэша`
-            : building
+            : building && state.readyMs == null
               ? "идёт сборка"
-              : "время сборки"}
+              : "профиль готов"}
         </span>
+        {state.readyMs != null && state.totalMs != null && state.totalMs > state.readyMs + 400 ? (
+          <span className="progress__extra">
+            факты, карта и описание — к {seconds(state.totalMs)}
+          </span>
+        ) : null}
         {!building ? (
           <button type="button" className="btn btn--ghost btn--small" onClick={onRebuild}>
             Пересобрать без кэша

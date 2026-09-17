@@ -1,137 +1,163 @@
-"""Прогон сервиса на наборе вузов без кэша: время до первого фото и до готового профиля, счётчики,
-статусы источников. Пишет ml/BENCHMARK.md и data/benchmark_sheet.html — лист для ручной проверки
-precision@15 (открыть в браузере, отметить неверные фото).
+"""Замер скорости сборки профиля на живом сервисе: сценарий жюри, 10 запросов.
 
-Время замеряется на той машине, где запущен скрипт (в CI это 4 vCPU GitHub Actions; на HF Spaces 2 vCPU).
+Замеряются три числа на каждый запрос:
+* `first_photo` - когда в интерфейсе появилось первое проверенное фото;
+* `ready` - когда профиль стал полезен (все источники разобраны, фото разложены по разделам);
+* `total` - когда доехали факты, карта, климат и описание.
 
-python ml/benchmark.py
+python ml/benchmark.py                       # локальный сервис на 8000
+python ml/benchmark.py --base https://...    # развёрнутый сервис
+python ml/benchmark.py --repeat 2 --cached   # ещё и повтор из общего кэша
 """
 from __future__ import annotations
 
-import asyncio
-import html
+import argparse
 import json
 import statistics
 import sys
 import time
 from pathlib import Path
 
+import httpx
+
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "backend"))
+OUT = ROOT / "ml/BENCHMARK.md"
 
-from app import http  # noqa: E402
-from app.pipeline.events import EventLog  # noqa: E402
-from app.pipeline.orchestrator import ProfileBuild  # noqa: E402
-from app.search import wikidata  # noqa: E402
-
+# Сценарий жюри: аббревиатуры, опечатка, адрес сайта, региональный вуз, зарубежный, несуществующий.
 QUERIES = [
-    ("ЕНУ", "крупный вуз Казахстана, аббревиатура"),
-    ("КазНУ", "крупный вуз Казахстана, аббревиатура"),
-    ("Nazarbayev Univercity", "крупный вуз Казахстана, опечатка"),
-    ("KIMEP", "вуз Казахстана"),
-    ("Торайгыров университет", "региональный вуз"),
-    ("Kostanay Regional University", "маленький региональный вуз"),
-    ("Technical University of Munich", "зарубежный"),
-    ("МФТИ", "Россия, аббревиатура"),
-    ("American University of Central Asia", "Центральная Азия"),
-    ("Университет Хогвартс", "несуществующий"),
+    "ЕНУ",
+    "КазНУ",
+    "Nazarbayev University",
+    "КБТУ",
+    "Satbayev University",
+    "Astana IT University",
+    "казахский национальный универистет",  # опечатка
+    "kimep.kz",                            # адрес сайта
+    "Университет Центральной Азии",
+    "Ташкентский государственный университет",
 ]
 
 
-def pct(values: list[float], q: float) -> float:
-    s = sorted(values)
-    return s[min(len(s) - 1, int(round(q * (len(s) - 1))))]
-
-
-async def one(query: str) -> dict:
+def stream_profile(client: httpx.Client, base: str, qid: str, fresh: bool) -> dict:
+    url = f"{base}/api/profile/{qid}/stream" + ("?fresh=1" if fresh else "")
     t0 = time.perf_counter()
-    res = await wikidata.search(query)
-    t_search = time.perf_counter() - t0
-    out = {"query": query, "status": res["status"], "search_s": round(t_search, 2), "candidates": [c["label"] for c in res["candidates"][:3]]}
-    if not res["candidates"]:
-        return out
-    qid = res["candidates"][0]["qid"]
-    log = EventLog(key=qid)
-    t1 = time.perf_counter()
-    await ProfileBuild(qid, log).run()
-    total = time.perf_counter() - t1
-    first_photo = next((e.t for e in log.events if e.type == "photos"), None)
-    photos: dict[str, dict] = {}
-    for e in log.events:
-        if e.type == "photos":
-            for p in e.data["photos"]:
-                photos[p["id"]] = p
-        elif e.type == "photo_update":
-            photos.pop(e.data["replaces"], None)
-            photos[e.data["photo"]["id"]] = e.data["photo"]
-    confirmed = sorted((p for p in photos.values() if p["level"] != "low"), key=lambda p: -p["confidence"])
-    sources = {e.data["key"]: e.data.get("status") for e in log.events if e.type == "source"}
-    progress = [e.data for e in log.events if e.type == "progress"]
-    facts = next((e.data["facts"] for e in log.events if e.type == "facts"), [])
-    out.update({
-        "qid": qid, "label": res["candidates"][0]["label"], "first_photo_s": None if first_photo is None else round(first_photo / 1000, 2),
-        "total_s": round(total, 2), "confirmed": len(confirmed), "unconfirmed": sum(1 for p in photos.values() if p["level"] == "low"),
-        "rejected": progress[-1]["rejected"] if progress else 0, "duplicates": progress[-1]["duplicates"] if progress else 0,
-        "by_category": {k: sum(1 for p in confirmed if p["category"] == k) for k in sorted({p["category"] for p in confirmed})},
-        "sources": sources, "facts_confirmed": sum(1 for f in facts if f["status"] == "confirmed"),
-        "top15": [{"id": p["id"], "image": p["image_url"], "page": p["page_url"], "category": p["category_label"],
-                   "confidence": p["confidence"], "title": p["title"]} for p in confirmed[:15]],
-    })
-    return out
+    marks: dict[str, float] = {}
+    counts = {"photos": 0, "rejected": 0, "categories": 0}
+    event = ""
+    with client.stream("GET", url, timeout=90) as r:
+        r.raise_for_status()
+        for line in r.iter_lines():
+            if line.startswith("event: "):
+                event = line[7:].strip()
+                continue
+            if not line.startswith("data: "):
+                continue
+            data = json.loads(line[6:])
+            now = time.perf_counter() - t0
+            if event == "photos":
+                counts["photos"] += len(data.get("photos", []))
+                marks.setdefault("first_photo", now)
+            elif event == "rejected":
+                counts["rejected"] += len(data.get("items", []))
+            elif event == "ready":
+                marks["ready"] = now
+                counts["categories"] = data.get("categories", 0)
+            elif event == "meta" and data.get("replay"):
+                marks["replay"] = now
+            elif event == "facts":
+                marks["facts"] = now
+            elif event == "done":
+                marks["total"] = now
+                break
+    return {"marks": marks, "counts": counts}
 
 
-def sheet(results: list[dict]) -> str:
-    parts = ["<!doctype html><meta charset=utf-8><title>Candid AI: проверка precision@15</title>",
-             "<style>body{font:14px system-ui;margin:24px}figure{display:inline-block;width:220px;margin:6px;vertical-align:top}"
-             "img{width:220px;height:160px;object-fit:cover}label{display:block}</style>",
-             "<h1>Проверка precision@15</h1><p>Отметьте фото, которое не относится к вузу или стоит не в том разделе. "
-             "Итог считается внизу страницы.</p>"]
-    for r in results:
-        if not r.get("top15"):
+def run(base: str, repeat: int, cached: bool) -> list[dict]:
+    rows: list[dict] = []
+    with httpx.Client(follow_redirects=True) as client:
+        for q in QUERIES:
+            t0 = time.perf_counter()
+            try:
+                found = client.get(f"{base}/api/search", params={"q": q}, timeout=30).json()
+            except httpx.HTTPError as e:
+                rows.append({"query": q, "error": f"поиск не ответил: {type(e).__name__}"})
+                continue
+            search_ms = (time.perf_counter() - t0) * 1000
+            if not found.get("candidates"):
+                rows.append({"query": q, "search_ms": round(search_ms), "error": "вуз не найден"})
+                continue
+            qid = found["candidates"][0]["qid"]
+            best: dict | None = None
+            for attempt in range(repeat):
+                try:
+                    res = stream_profile(client, base, qid, fresh=attempt == 0)
+                except httpx.HTTPError as e:
+                    rows.append({"query": q, "qid": qid, "error": f"сборка не ответила: {type(e).__name__}"})
+                    best = None
+                    break
+                if attempt == 0:
+                    best = res
+                elif cached:
+                    best = {**(best or {}), "cached_s": res["marks"].get("total")}
+            if best is None:
+                continue
+            m = best["marks"]
+            rows.append({
+                "query": q, "qid": qid, "label": found["candidates"][0].get("label", ""),
+                "search_ms": round(search_ms),
+                "first_photo_s": round(m.get("first_photo", 0), 1),
+                "ready_s": round(m.get("ready", m.get("total", 0)), 1),
+                "total_s": round(m.get("total", 0), 1),
+                "cached_s": round(best.get("cached_s") or 0, 2) if best.get("cached_s") else None,
+                **best["counts"],
+            })
+            print(json.dumps(rows[-1], ensure_ascii=False))
+    return rows
+
+
+def report(rows: list[dict], base: str) -> str:
+    ok = [r for r in rows if "error" not in r]
+    lines = [
+        "# Скорость сборки профиля",
+        "",
+        f"Замер: `python ml/benchmark.py --base {base}`, {time.strftime('%Y-%m-%d %H:%M')}.",
+        "Первый запрос каждого вуза идёт без кэша профиля.",
+        "",
+        "| Запрос | Вуз | Поиск, мс | Первое фото, с | Готово, с | Полностью, с | Фото | Отклонено |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for r in rows:
+        if "error" in r:
+            lines.append(f"| {r['query']} | — | — | — | — | — | — | {r['error']} |")
             continue
-        parts.append(f"<h2>{html.escape(r['label'])} ({r['qid']})</h2>")
-        for p in r["top15"]:
-            parts.append(f"<figure><a href='{html.escape(p['page'])}' target=_blank><img src='{html.escape(p['image'])}' loading=lazy></a>"
-                         f"<figcaption>{html.escape(p['category'])} · {p['confidence']:.0%}<label><input type=checkbox class=bad> неверно</label>"
-                         f"<label><input type=checkbox class=badcat> не тот раздел</label></figcaption></figure>")
-    parts.append("<p id=total></p><script>function t(){const n=document.querySelectorAll('figure').length;"
-                 "const b=document.querySelectorAll('.bad:checked').length;const c=document.querySelectorAll('.badcat:checked').length;"
-                 "document.getElementById('total').textContent=`Принадлежность: ${((n-b)/n*100).toFixed(1)}% · раздел: ${((n-b-c)/n*100).toFixed(1)}% (${n} фото)`}"
-                 "document.addEventListener('change',t);t()</script>")
-    return "\n".join(parts)
+        lines.append(f"| {r['query']} | {r['label']} | {r['search_ms']} | {r['first_photo_s']} | "
+                     f"{r['ready_s']} | {r['total_s']} | {r['photos']} | {r['rejected']} |")
+    if ok:
+        lines += [
+            "",
+            f"**Медиана: первое фото {statistics.median(r['first_photo_s'] for r in ok):.1f} с, "
+            f"профиль готов {statistics.median(r['ready_s'] for r in ok):.1f} с, "
+            f"полностью {statistics.median(r['total_s'] for r in ok):.1f} с.**",
+        ]
+        cached = [r["cached_s"] for r in ok if r.get("cached_s")]
+        if cached:
+            lines.append(f"Повторное открытие из общего кэша: медиана {statistics.median(cached):.2f} с.")
+    return "\n".join(lines) + "\n"
 
 
-async def main() -> None:
-    results = []
-    for q, kind in QUERIES:
-        try:
-            r = await one(q)
-        except Exception as e:  # noqa: BLE001
-            r = {"query": q, "status": "error", "error": repr(e)}
-        r["kind"] = kind
-        results.append(r)
-        print(json.dumps({k: v for k, v in r.items() if k != "top15"}, ensure_ascii=False), flush=True)
-    await http.close()
-    built = [r for r in results if r.get("total_s") is not None]
-    totals = [r["total_s"] for r in built]
-    firsts = [r["first_photo_s"] for r in built if r.get("first_photo_s") is not None]
-    lines = ["# Бенчмарк сборки профиля", "",
-             f"Дата: {time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime())}. Без кэша, последовательно, на машине CI.", ""]
-    if totals:
-        lines += [f"- До первого подтверждённого фото: медиана {statistics.median(firsts):.1f} с, p95 {pct(firsts, 0.95):.1f} с" if firsts else "- Первых фото нет",
-                  f"- До готового профиля: медиана {statistics.median(totals):.1f} с, p95 {pct(totals, 0.95):.1f} с", ""]
-    lines += ["| Запрос | Тип | Результат поиска | Первое фото, с | Готово, с | Фото в фонде | Не подтв. | Изъято | Дубли | Факты ✓ |",
-              "|---|---|---|---|---|---|---|---|---|---|"]
-    for r in results:
-        lines.append(f"| {r['query']} | {r['kind']} | {r['status']}: {', '.join(r.get('candidates', [])[:1]) or '—'} | "
-                     f"{r.get('first_photo_s', '—')} | {r.get('total_s', '—')} | {r.get('confirmed', '—')} | {r.get('unconfirmed', '—')} | "
-                     f"{r.get('rejected', '—')} | {r.get('duplicates', '—')} | {r.get('facts_confirmed', '—')} |")
-    lines += ["", "Точность precision@15 считается вручную по листу `data/benchmark_sheet.html` (артефакт CI) и вносится в README."]
-    (ROOT / "ml" / "BENCHMARK.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    (ROOT / "data").mkdir(exist_ok=True)
-    (ROOT / "data" / "benchmark_sheet.html").write_text(sheet(results), encoding="utf-8")
-    (ROOT / "data" / "benchmark.json").write_text(json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--base", default="http://127.0.0.1:8000")
+    ap.add_argument("--repeat", type=int, default=1, help="сколько раз собирать каждый профиль")
+    ap.add_argument("--cached", action="store_true", help="замерить повтор из кэша")
+    ap.add_argument("--out", default=str(OUT))
+    args = ap.parse_args()
+    rows = run(args.base.rstrip("/"), max(1, args.repeat), args.cached)
+    text = report(rows, args.base)
+    Path(args.out).write_text(text, encoding="utf-8")
+    sys.stdout.write(text)
+    return 0
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    raise SystemExit(main())
