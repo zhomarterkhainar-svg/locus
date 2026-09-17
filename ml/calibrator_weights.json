@@ -1,18 +1,34 @@
 {
-  "trained": false,
-  "note": "Априорные веса, заданы вручную до разметки. Замените: python ml/train_calibrator.py data/labels/*.jsonl",
-  "samples": 0,
-  "metrics": null,
-  "bias": -1.7,
-  "weights": {
-    "geo": 1.9,
-    "geo_far": -3.5,
-    "text": 1.6,
-    "source": 1.9,
-    "visual": 1.0,
-    "category": 0.9,
-    "trash": -3.2,
-    "watermark": -2.0
+  "trained": true,
+  "note": "Обучено на 685 примерах (weak: 685) по 14 вузам, кросс-валидация по вузам. Слабая разметка: категории Wikimedia Commons, см. ml/build_calibrator_data.py.",
+  "samples": 685,
+  "metrics": {
+    "cv": "5 фолдов по вузам",
+    "cv_accuracy": 0.847,
+    "cv_brier": 0.143,
+    "cv_ece": 0.101,
+    "cv_precision_high": 1.0,
+    "cv_share_high": 0.334,
+    "cv_precision_medium": 0.077,
+    "cv_recall_high": 0.684,
+    "positives": 335,
+    "negatives": 350,
+    "universities": 14
   },
-  "thresholds": {"high": 0.75, "medium": 0.5}
+  "bias": -3.9444,
+  "weights": {
+    "geo": 2.4712,
+    "geo_far": 0.0128,
+    "text": 3.6417,
+    "source": 6.3145,
+    "visual": 0.799,
+    "category": -0.2444,
+    "trash": 0.4646,
+    "watermark": -0.174
+  },
+  "thresholds": {
+    "high": 0.6,
+    "medium": 0.45
+  },
+  "trained_at": "2026-09-17T15:56:07+00:00"
 }

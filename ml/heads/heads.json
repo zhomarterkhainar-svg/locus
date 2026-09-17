@@ -1,0 +1,402 @@
+{
+  "model": "Xenova/clip-vit-base-patch32/vision_model_quantized.onnx",
+  "trained_at": "2026-09-17T15:38:13+00:00",
+  "dataset": {
+    "rows": 10612,
+    "by_source": {
+      "commons": 6412,
+      "places365": 4200
+    }
+  },
+  "eval_manual_43": {
+    "n": 43,
+    "zero_shot": {
+      "category_accuracy": 0.767,
+      "trash_vs_photo_accuracy": 0.93
+    },
+    "blend": {
+      "category_accuracy": 0.814,
+      "trash_vs_photo_accuracy": 0.977
+    },
+    "head": {
+      "category_accuracy": 0.814,
+      "trash_vs_photo_accuracy": 0.977
+    }
+  },
+  "heads": {
+    "category": {
+      "alpha": 0.7,
+      "C": 1.0,
+      "metrics": {
+        "n_train": 5208,
+        "n_val": 1022,
+        "n_test": 876,
+        "zero_shot": {
+          "accuracy": 0.6587,
+          "macro_f1": 0.6107
+        },
+        "head": {
+          "accuracy": 0.7317,
+          "macro_f1": 0.7214
+        },
+        "blend": {
+          "accuracy": 0.7534,
+          "macro_f1": 0.7359
+        },
+        "per_class_f1_blend": {
+          "campus": 0.493,
+          "dormitory": 0.712,
+          "classroom": 0.857,
+          "library": 0.594,
+          "lab": 0.731,
+          "sport": 0.839,
+          "canteen": 0.761,
+          "student_life": 0.596,
+          "city": 0.727,
+          "trash:logo": null,
+          "trash:text": null,
+          "trash:portrait": 0.861,
+          "trash:map": null,
+          "trash:stamp": 0.924,
+          "trash:other": null
+        },
+        "val_alpha_curve": [
+          {
+            "alpha": 0.0,
+            "macro_f1": 0.4496
+          },
+          {
+            "alpha": 0.1,
+            "macro_f1": 0.463
+          },
+          {
+            "alpha": 0.2,
+            "macro_f1": 0.4815
+          },
+          {
+            "alpha": 0.3,
+            "macro_f1": 0.4854
+          },
+          {
+            "alpha": 0.4,
+            "macro_f1": 0.4939
+          },
+          {
+            "alpha": 0.5,
+            "macro_f1": 0.4951
+          },
+          {
+            "alpha": 0.6,
+            "macro_f1": 0.4973
+          },
+          {
+            "alpha": 0.7,
+            "macro_f1": 0.4993
+          },
+          {
+            "alpha": 0.8,
+            "macro_f1": 0.4977
+          },
+          {
+            "alpha": 0.9,
+            "macro_f1": 0.4941
+          },
+          {
+            "alpha": 1.0,
+            "macro_f1": 0.4933
+          }
+        ],
+        "removed_by_cleaning": 264,
+        "class_counts": {
+          "campus": 583,
+          "dormitory": 519,
+          "classroom": 609,
+          "library": 403,
+          "lab": 707,
+          "sport": 781,
+          "canteen": 588,
+          "student_life": 297,
+          "city": 870,
+          "trash:logo": 265,
+          "trash:text": 301,
+          "trash:portrait": 315,
+          "trash:map": 295,
+          "trash:stamp": 310,
+          "trash:other": 263
+        }
+      },
+      "keys": [
+        "campus",
+        "dormitory",
+        "classroom",
+        "library",
+        "lab",
+        "sport",
+        "canteen",
+        "student_life",
+        "city",
+        "trash:logo",
+        "trash:text",
+        "trash:portrait",
+        "trash:map",
+        "trash:stamp",
+        "trash:other"
+      ]
+    },
+    "dorm_sub": {
+      "alpha": 0.8,
+      "C": 30.0,
+      "metrics": {
+        "n_train": 1123,
+        "n_val": 273,
+        "n_test": 199,
+        "zero_shot": {
+          "accuracy": 0.8794,
+          "macro_f1": 0.8719
+        },
+        "head": {
+          "accuracy": 0.9045,
+          "macro_f1": 0.8979
+        },
+        "blend": {
+          "accuracy": 0.9045,
+          "macro_f1": 0.9027
+        },
+        "per_class_f1_blend": {
+          "dorm_room": 0.911,
+          "dorm_kitchen": 0.891,
+          "dorm_bathroom": 0.889,
+          "dorm_exterior": 0.875,
+          "dorm_corridor": 0.947
+        },
+        "val_alpha_curve": [
+          {
+            "alpha": 0.0,
+            "macro_f1": 0.846
+          },
+          {
+            "alpha": 0.1,
+            "macro_f1": 0.8423
+          },
+          {
+            "alpha": 0.2,
+            "macro_f1": 0.8423
+          },
+          {
+            "alpha": 0.3,
+            "macro_f1": 0.86
+          },
+          {
+            "alpha": 0.4,
+            "macro_f1": 0.8636
+          },
+          {
+            "alpha": 0.5,
+            "macro_f1": 0.8803
+          },
+          {
+            "alpha": 0.6,
+            "macro_f1": 0.8888
+          },
+          {
+            "alpha": 0.7,
+            "macro_f1": 0.8888
+          },
+          {
+            "alpha": 0.8,
+            "macro_f1": 0.8895
+          },
+          {
+            "alpha": 0.9,
+            "macro_f1": 0.8888
+          },
+          {
+            "alpha": 1.0,
+            "macro_f1": 0.8844
+          }
+        ],
+        "removed_by_cleaning": 0,
+        "class_counts": {
+          "dorm_room": 460,
+          "dorm_kitchen": 260,
+          "dorm_bathroom": 356,
+          "dorm_exterior": 259,
+          "dorm_corridor": 260
+        }
+      },
+      "keys": [
+        "dorm_room",
+        "dorm_kitchen",
+        "dorm_bathroom",
+        "dorm_exterior",
+        "dorm_corridor"
+      ]
+    },
+    "sport_sub": {
+      "alpha": 0.3,
+      "C": 0.3,
+      "metrics": {
+        "n_train": 728,
+        "n_val": 253,
+        "n_test": 148,
+        "zero_shot": {
+          "accuracy": 0.6892,
+          "macro_f1": 0.7007
+        },
+        "head": {
+          "accuracy": 0.6622,
+          "macro_f1": 0.6634
+        },
+        "blend": {
+          "accuracy": 0.6892,
+          "macro_f1": 0.6979
+        },
+        "per_class_f1_blend": {
+          "sport_gym": 0.6,
+          "sport_pool": 0.8,
+          "sport_stadium": 0.72,
+          "sport_court": 0.672
+        },
+        "val_alpha_curve": [
+          {
+            "alpha": 0.0,
+            "macro_f1": 0.8939
+          },
+          {
+            "alpha": 0.1,
+            "macro_f1": 0.8939
+          },
+          {
+            "alpha": 0.2,
+            "macro_f1": 0.8939
+          },
+          {
+            "alpha": 0.3,
+            "macro_f1": 0.8942
+          },
+          {
+            "alpha": 0.4,
+            "macro_f1": 0.8896
+          },
+          {
+            "alpha": 0.5,
+            "macro_f1": 0.8935
+          },
+          {
+            "alpha": 0.6,
+            "macro_f1": 0.8872
+          },
+          {
+            "alpha": 0.7,
+            "macro_f1": 0.8777
+          },
+          {
+            "alpha": 0.8,
+            "macro_f1": 0.8777
+          },
+          {
+            "alpha": 0.9,
+            "macro_f1": 0.8595
+          },
+          {
+            "alpha": 1.0,
+            "macro_f1": 0.8185
+          }
+        ],
+        "removed_by_cleaning": 0,
+        "class_counts": {
+          "sport_gym": 256,
+          "sport_pool": 258,
+          "sport_stadium": 358,
+          "sport_court": 257
+        }
+      },
+      "keys": [
+        "sport_gym",
+        "sport_pool",
+        "sport_stadium",
+        "sport_court"
+      ]
+    },
+    "bunk": {
+      "alpha": 1.0,
+      "C": 0.3,
+      "metrics": {
+        "n_train": 298,
+        "n_val": 77,
+        "n_test": 57,
+        "zero_shot": {
+          "accuracy": 0.5965,
+          "macro_f1": 0.5837
+        },
+        "head": {
+          "accuracy": 0.9123,
+          "macro_f1": 0.9118
+        },
+        "blend": {
+          "accuracy": 0.9123,
+          "macro_f1": 0.9118
+        },
+        "per_class_f1_blend": {
+          "bunk_bed": 0.906,
+          "single_bed": 0.918
+        },
+        "val_alpha_curve": [
+          {
+            "alpha": 0.0,
+            "macro_f1": 0.325
+          },
+          {
+            "alpha": 0.1,
+            "macro_f1": 0.3386
+          },
+          {
+            "alpha": 0.2,
+            "macro_f1": 0.3386
+          },
+          {
+            "alpha": 0.3,
+            "macro_f1": 0.3452
+          },
+          {
+            "alpha": 0.4,
+            "macro_f1": 0.3648
+          },
+          {
+            "alpha": 0.5,
+            "macro_f1": 0.3775
+          },
+          {
+            "alpha": 0.6,
+            "macro_f1": 0.4022
+          },
+          {
+            "alpha": 0.7,
+            "macro_f1": 0.4265
+          },
+          {
+            "alpha": 0.8,
+            "macro_f1": 0.4509
+          },
+          {
+            "alpha": 0.9,
+            "macro_f1": 0.4697
+          },
+          {
+            "alpha": 1.0,
+            "macro_f1": 0.4828
+          }
+        ],
+        "removed_by_cleaning": 0,
+        "class_counts": {
+          "bunk_bed": 123,
+          "single_bed": 309
+        }
+      },
+      "keys": [
+        "bunk_bed",
+        "single_bed"
+      ]
+    }
+  }
+}
