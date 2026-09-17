@@ -1,0 +1,27 @@
+# Развёртывание фронтенда на Netlify. Netlify читает этот файл из корня репозитория.
+# Адрес API задаётся переменной VITE_API_BASE в Site settings -> Environment variables,
+# например https://candid-ai-api.onrender.com
+[build]
+  base = "frontend"
+  command = "npm ci --no-audit --no-fund && npm run build"
+  publish = "frontend/dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Одностраничное приложение: любой путь отдаёт index.html, роутер разбирается сам.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"

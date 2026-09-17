@@ -1,0 +1,3 @@
+# Одностраничное приложение: любой путь отдаёт index.html с кодом 200, а не 404.
+# Этот файл понимают и Cloudflare Pages, и Netlify; Vite копирует public/ в dist/.
+/*    /index.html   200

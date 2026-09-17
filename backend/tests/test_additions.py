@@ -15,6 +15,7 @@ from app.facts.engine import dorm_facts
 from app.search.wikidata import site_domain
 from app.sources import context, osm
 from app.vision import heads as heads_mod
+from app import concurrency
 from app.vision.textsearch import lexicon_translate, rank
 from test_units import enu
 
@@ -22,7 +23,9 @@ from test_units import enu
 @pytest.fixture(autouse=True)
 def tmp_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(get_settings(), "cache_dir", str(tmp_path / "cache"))
-    osm._inflight.clear()
+    # Общие примитивы asyncio и фоновые загрузки Overpass живут в пределах цикла событий,
+    # а у каждого теста он свой: сбрасываем, чтобы тесты не тянули друг за другом хвосты.
+    concurrency.reset()
     yield
 
 

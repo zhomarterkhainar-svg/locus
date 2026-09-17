@@ -28,7 +28,7 @@ KEYWORDS = [
 SKIP_IMG = re.compile(r"(logo|icon|sprite|favicon|avatar|flag|placeholder|loader|spinner|banner-small|qr|social|arrow|button|\.svg|\.gif)", re.I)
 SKIP_LINK = re.compile(r"\.(pdf|docx?|xlsx?|zip|rar|mp4|jpg|png)(\?|$)|^(mailto|tel|javascript):", re.I)
 MAX_PAGES = 9
-MAX_IMAGES = 60
+MAX_IMAGES = 36  # количество фото не преимущество: лучше меньше, но быстрее и проверенных
 
 
 @dataclass
@@ -65,20 +65,26 @@ def _meta(tree: HTMLParser, *names: str) -> str:
     return ""
 
 
+# Из srcset берём не самый большой файл, а самый маленький из достаточно больших: для показа
+# и для анализа хватает ~800 px по ширине, а оригиналы на сайтах вузов весят по несколько мегабайт
+# и на обычном интернете съедают весь бюджет сборки.
+ENOUGH_WIDTH = 800
+
+
 def _best_src(node) -> str:
     a = node.attributes
     srcset = a.get("srcset") or a.get("data-srcset") or ""
     if srcset:
-        best, best_w = "", 0
+        variants: list[tuple[int, str]] = []
         for part in srcset.split(","):
             bits = part.strip().split()
             if not bits:
                 continue
             w = int(re.sub(r"\D", "", bits[1]) or 0) if len(bits) > 1 else 1
-            if w >= best_w:
-                best, best_w = bits[0], w
-        if best:
-            return best
+            variants.append((w, bits[0]))
+        if variants:
+            enough = [v for v in variants if v[0] >= ENOUGH_WIDTH]
+            return min(enough)[1] if enough else max(variants)[1]
     for key in ("data-src", "data-lazy-src", "data-original", "src"):
         if a.get(key) and not a[key].startswith("data:"):
             return a[key]

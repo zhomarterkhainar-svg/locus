@@ -60,7 +60,10 @@ class Settings(BaseSettings):
 
     max_downloads: int = 120
     download_concurrency: int = 32
-    max_image_bytes: int = 4_000_000
+    per_host_downloads: int = 8  # одновременных загрузок с одного сайта
+    cdn_host_downloads: int = 12  # с CDN Wikimedia и Flickr можно больше, чем с сайта вуза
+    decode_concurrency: int = 3  # одновременных декодирований: декодер держит GIL
+    max_image_bytes: int = 3_000_000
     analyze_side: int = 512  # до какого размера ужимаем кадр в памяти перед анализом
     max_detect: int = 10  # сколько фото общежитий отдаём детектору предметов
 

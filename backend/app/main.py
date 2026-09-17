@@ -2,8 +2,8 @@
 
 Развёртывание рассчитано на две схемы сразу:
 * один контейнер (Docker, Hugging Face Spaces) - фронтенд лежит в frontend/dist и раздаётся отсюда;
-* фронтенд на Vercel + API на Render - тогда dist нет, работает только /api, а домены фронтенда
-  перечислены в CORS_ORIGINS.
+* статический сайт и API раздельно (два сервиса Render) - тогда dist нет, работает только /api,
+  а домены фронтенда перечислены в CORS_ORIGINS.
 """
 from __future__ import annotations
 
@@ -103,8 +103,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.origins,
-    # Превью-развёртывания Vercel получают домен вида candid-ai-git-<ветка>-<аккаунт>.vercel.app.
-    allow_origin_regex=r"https://[a-z0-9-]+\.vercel\.app",
+    # Статический сервис Render (candid-ai-web.onrender.com) и превью-домены Vercel.
+    allow_origin_regex=r"https://[a-z0-9-]+\.(onrender\.com|vercel\.app|pages\.dev|netlify\.app)",
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
@@ -221,7 +221,7 @@ async def features(qid: str):
 @app.get("/api/profile/{qid}/find")
 async def find_in_profile(qid: str, q: str = Query(..., min_length=2, max_length=120)):
     """Поиск внутри собранного профиля текстом по эмбеддингам CLIP."""
-    from .pipeline.orchestrator import ML_LOCK
+    from .pipeline.orchestrator import ml_lock
     from .vision.clip_model import get_clip
     from .vision.textsearch import rank, to_english
 
@@ -241,7 +241,7 @@ async def find_in_profile(qid: str, q: str = Query(..., min_length=2, max_length
         m = t.mean(axis=0)
         return m / np.linalg.norm(m)
 
-    async with ML_LOCK:
+    async with ml_lock():
         text_emb = await asyncio.to_thread(encode)
     results = rank(text_emb, ids, embs)
     return {"query": q, "english": english, "via": via, "results": [{"id": i, "score": s} for i, s in results]}
@@ -297,4 +297,4 @@ else:
     @app.get("/")
     async def root():
         return {"service": "Candid AI API", "docs": "/docs", "health": "/api/health",
-                "note": "Интерфейс развёрнут отдельно (Vercel); этот сервис отдаёт только /api."}
+                "note": "Интерфейс развёрнут отдельным сервисом; этот адрес отдаёт только /api."}

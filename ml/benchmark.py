@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import statistics
 import sys
 import time
@@ -115,13 +116,21 @@ def run(base: str, repeat: int, cached: bool) -> list[dict]:
     return rows
 
 
+def conditions() -> str:
+    import platform
+
+    return f"{platform.system()} {platform.machine()}, {os.cpu_count()} логических ядер"
+
+
 def report(rows: list[dict], base: str) -> str:
     ok = [r for r in rows if "error" not in r]
     lines = [
         "# Скорость сборки профиля",
         "",
         f"Замер: `python ml/benchmark.py --base {base}`, {time.strftime('%Y-%m-%d %H:%M')}.",
-        "Первый запрос каждого вуза идёт без кэша профиля.",
+        f"Машина замера: {conditions()}.",
+        "Первый запрос каждого вуза идёт без кэша профиля. Время поиска - это ответ Wikidata,",
+        "оно зависит от расстояния до её серверов и к сборке профиля не относится.",
         "",
         "| Запрос | Вуз | Поиск, мс | Первое фото, с | Готово, с | Полностью, с | Фото | Отклонено |",
         "|---|---|---|---|---|---|---|---|",
@@ -141,7 +150,8 @@ def report(rows: list[dict], base: str) -> str:
         ]
         cached = [r["cached_s"] for r in ok if r.get("cached_s")]
         if cached:
-            lines.append(f"Повторное открытие из общего кэша: медиана {statistics.median(cached):.2f} с.")
+            lines.append(f"Повторное открытие уже собранного профиля: медиана {statistics.median(cached):.2f} с "
+                         "(готовый профиль отдаётся из кэша сервиса, а при настроенном Supabase - и после перезапуска).")
     return "\n".join(lines) + "\n"
 
 

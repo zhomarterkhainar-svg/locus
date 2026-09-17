@@ -114,7 +114,15 @@ def build(c: Candidate, uni: University, campus: Campus, matcher: NameMatcher, c
     feats = {"geo": geo, "geo_far": geo_far, "text": text_score, "source": source, "visual": visual,
              "category": category_p, "trash": trash_p, "watermark": watermark}
     conf = calibrator.predict(feats)
-    w = calibrator.weight
+
+    def w(key: str) -> float:
+        return calibrator.weight(key)
+
+    def note(key: str, detail: str) -> str:
+        """Сигнал с нулевым весом честно помечается: калибратор на данных не нашёл в нём вклада,
+        потому что крайние случаи (мусор, снимок далеко от кампуса) сервис отсекает до калибратора."""
+        return detail if w(key) != 0 else f"{detail}; на итог не влияет: такие кадры отсекаются раньше"
+
     signals = [
         Signal("geo", "Геометка", geo if not geo_far else -1.0, w("geo") if not geo_far else -w("geo_far"), geo_detail),
         Signal("text", "Название в подписи", text_score, w("text"),
@@ -122,8 +130,9 @@ def build(c: Candidate, uni: University, campus: Campus, matcher: NameMatcher, c
         Signal("source", "Источник", source, w("source"), SOURCE_LABEL.get((c.source, c.origin), c.source)),
         Signal("visual", "Сходство с эталонными фото", visual, w("visual"),
                "эталонов нет" if ref_sim is None else f"косинусная близость {ref_sim:.2f}"),
-        Signal("category", "Уверенность в категории", category_p, w("category"), f"вероятность {category_p:.0%}"),
-        Signal("trash", "Похоже на мусор", trash_p, w("trash"), f"вероятность {trash_p:.0%}"),
-        Signal("watermark", "Водяной знак", watermark, w("watermark"), "признаки водяного знака" if watermark > 0.3 else "не обнаружен"),
+        Signal("category", "Уверенность в категории", category_p, w("category"), note("category", f"вероятность {category_p:.0%}")),
+        Signal("trash", "Похоже на мусор", trash_p, w("trash"), note("trash", f"вероятность {trash_p:.0%}")),
+        Signal("watermark", "Водяной знак", watermark, w("watermark"),
+               note("watermark", "признаки водяного знака" if watermark > 0.3 else "не обнаружен")),
     ]
     return conf, signals, dist, nearest, text_score

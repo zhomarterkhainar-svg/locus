@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx
 
-from .. import cache
+from .. import cache, concurrency
 from ..config import get_settings
 from ..domain import University
 from ..geo import Point, bbox_diag, centroid, distance_to_rings, haversine, stitch_ways
@@ -184,7 +184,9 @@ def parse(data: dict[str, Any], uni: University) -> Campus:
     return campus
 
 
-_inflight: dict[str, asyncio.Task] = {}
+def _inflight_tasks() -> dict[str, asyncio.Task]:
+    """Фоновые загрузки Overpass: одна на вуз в пределах цикла событий."""
+    return concurrency.store("osm-inflight")
 
 
 async def _race_mirrors(q: str, per_request_timeout: float) -> dict[str, Any]:
@@ -278,14 +280,15 @@ async def cached_campus_shared(uni: University) -> Campus | None:
 
 def background_task(uni: University) -> asyncio.Task:
     """Одна загрузка на вуз: если сборка не дождалась Overpass, загрузка продолжается и заполняет кэш."""
-    task = _inflight.get(uni.qid)
+    inflight = _inflight_tasks()
+    task = inflight.get(uni.qid)
     if task is None or task.done():
         task = asyncio.create_task(_load_raw(uni))
-        _inflight[uni.qid] = task
+        inflight[uni.qid] = task
 
-        def _done(t: asyncio.Task, qid: str = uni.qid) -> None:
-            if _inflight.get(qid) is t:
-                _inflight.pop(qid, None)
+        def _done(t: asyncio.Task, qid: str = uni.qid, box: dict = inflight) -> None:
+            if box.get(qid) is t:
+                box.pop(qid, None)
             if not t.cancelled() and t.exception() is not None:
                 log.info("overpass background for %s failed: %s", qid, t.exception())
 

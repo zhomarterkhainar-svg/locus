@@ -5,13 +5,15 @@ import asyncio
 import io
 from dataclasses import dataclass
 from typing import AsyncIterator
+from urllib.parse import urlsplit
 
 import httpx
 from PIL import Image, ImageOps
 
+from .. import concurrency
 from ..config import get_settings
 from ..domain import Candidate
-from ..http import client
+from ..http import downloads
 
 Image.MAX_IMAGE_PIXELS = 60_000_000
 
@@ -25,10 +27,32 @@ class Loaded:
     error: str = ""
 
 
+# Не больше нескольких одновременных запросов к одному хосту: иначе сайт вуза отдаёт
+# десяток тяжёлых кадров медленнее, чем отдал бы по очереди, и это вежливее к источнику.
+# Декодирование картинки держит GIL, и десяток параллельных декодов подвешивает цикл событий:
+# ответы источников и поток событий в браузер начинают опаздывать, поэтому оно тоже ограничено.
+
+
+# Отдача картинок у Wikimedia и Flickr - это CDN, рассчитанный на параллельные запросы;
+# сайту вуза столько же запросов сразу делать и невежливо, и медленнее для нас.
+CDN_HOSTS = ("wikimedia.org", "wikipedia.org", "staticflickr.com", "flickr.com")
+
+
+def _host_sem(url: str) -> asyncio.Semaphore:
+    host = urlsplit(url).netloc.lower()
+    s = get_settings()
+    limit = s.cdn_host_downloads if host.endswith(CDN_HOSTS) else s.per_host_downloads
+    return concurrency.semaphore(f"host:{host}", limit)
+
+
+def _decoder() -> asyncio.Semaphore:
+    return concurrency.semaphore("decode", get_settings().decode_concurrency)
+
+
 async def _load_one(cand: Candidate, sem: asyncio.Semaphore) -> Loaded:
     s = get_settings()
-    c = await client()
-    async with sem:
+    c = await downloads()
+    async with sem, _host_sem(cand.download_url):
         try:
             async with c.stream("GET", cand.download_url, timeout=s.download_timeout,
                                 headers={"Referer": cand.page_url}) as r:
@@ -51,7 +75,8 @@ async def _load_one(cand: Candidate, sem: asyncio.Semaphore) -> Loaded:
         except Exception as e:  # noqa: BLE001
             return Loaded(cand, None, error=f"ошибка загрузки {type(e).__name__}")
     try:
-        img = await asyncio.to_thread(_decode, bytes(buf), s.analyze_side)
+        async with _decoder():
+            img = await asyncio.to_thread(_decode, bytes(buf), s.analyze_side)
     except Exception:  # noqa: BLE001
         return Loaded(cand, None, error="не удалось прочитать изображение")
     w, h = img.info.pop("orig_size", img.size)
@@ -87,12 +112,16 @@ async def load_stream(cands: list[Candidate], chunk: int = 12) -> AsyncIterator[
     sem = asyncio.Semaphore(get_settings().download_concurrency)
     tasks = [asyncio.create_task(_load_one(c, sem)) for c in cands]
     buf: list[Loaded] = []
+    # Первая партия вдвое меньше: первые проверенные фото появляются в интерфейсе заметно раньше,
+    # дальше партии крупнее, чтобы не гонять модель на мелких батчах.
+    size = max(4, chunk // 2)
     try:
         for fut in asyncio.as_completed(tasks):
             buf.append(await fut)
-            if len(buf) >= chunk:
+            if len(buf) >= size:
                 yield buf
                 buf = []
+                size = chunk
         if buf:
             yield buf
     finally:

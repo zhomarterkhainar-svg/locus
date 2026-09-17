@@ -20,7 +20,7 @@ from typing import Any
 
 import numpy as np
 
-from .. import store
+from .. import concurrency, store
 from ..config import get_settings
 from ..describe.describe import collect, describe
 from ..domain import Candidate, Photo, Rejected, University
@@ -39,8 +39,12 @@ from ..vision.dedup import DedupIndex, phash
 from ..vision.loader import load_stream
 from .events import EventLog
 
-ML_LOCK = asyncio.Semaphore(1)
 log = logging.getLogger("candid.pipeline")
+
+
+def ml_lock() -> asyncio.Semaphore:
+    """Одна сборка за раз считает модели: так партии не дерутся за процессор и цикл событий."""
+    return concurrency.semaphore("ml", 1)
 
 SOURCE_LABELS = {
     "commons": "Wikimedia Commons",
@@ -393,7 +397,7 @@ class ProfileBuild:
 
         result: dict[str, Any] = {}
         if ok:
-            async with ML_LOCK:
+            async with ml_lock():
                 result = await asyncio.to_thread(self._ml, [i.image for i in ok])
             # Ждём карту кампуса, но не дольше её собственного бюджета: без карты проверка идёт
             # по точке Wikidata, а когда карта придёт, оценки пересчитаются (_rescore).
@@ -637,7 +641,7 @@ class ProfileBuild:
         self.images.clear()
 
     async def _detect_dorm(self, dorm: list[Photo]) -> None:
-        async with ML_LOCK:
+        async with ml_lock():
             imgs = [self.images[p.candidate.id] for p in dorm]
             boxes = await asyncio.to_thread(detector.detect, imgs, 0.3)
             try:

@@ -1,8 +1,13 @@
-# Backend Candid AI на Render (Blueprint). Развернуть: Render -> New -> Blueprint -> этот репозиторий.
+# Candid AI на Render (Blueprint): два сервиса - API с моделями и статический фронтенд.
+# Развернуть: Render -> New -> Blueprint -> этот репозиторий.
 #
-# Бесплатный инстанс - 512 МБ памяти, поэтому сервис работает на ONNX Runtime без PyTorch:
-# веса всех моделей занимают ~100 МБ, старт занимает секунды. Фронтенд живёт отдельно на Vercel,
-# домен фронтенда нужно вписать в CORS_ORIGINS.
+# Бесплатный инстанс API - 512 МБ памяти, поэтому сервис работает на ONNX Runtime без PyTorch:
+# веса всех моделей занимают ~100 МБ, старт занимает секунды.
+#
+# Почему фронтенд тоже здесь, а не на Vercel: у части операторов связи в Казахстане домены Vercel
+# не открываются (обрыв TLS), а сайт должен открываться у жюри. Render отдаёт статику бесплатно
+# и не засыпает. Фронтенд на Vercel/Cloudflare Pages тоже поддерживается - достаточно собрать
+# frontend/ с переменной VITE_API_BASE и вписать домен в CORS_ORIGINS.
 #
 # Секреты (Render -> Environment) задаются вручную и в репозиторий не попадают:
 #   GEMINI_API_KEY   - описание кампуса со сносками (без него показываются выдержки из источников)
@@ -42,9 +47,13 @@ services:
         value: "90"
       - key: DOWNLOAD_CONCURRENCY
         value: "24"
-      # Сюда добавьте домен своего фронтенда на Vercel через запятую.
+      # Домен статического сервиса ниже Render подставит сам после первого деплоя;
+      # сюда можно дописать и другие домены фронтенда через запятую.
       - key: CORS_ORIGINS
-        value: https://candid-ai.vercel.app,http://localhost:5173
+        fromService:
+          type: web
+          name: candid-ai-web
+          envVarKey: RENDER_EXTERNAL_URL
       - key: CONTACT
         sync: false
       - key: GEMINI_API_KEY
@@ -55,3 +64,31 @@ services:
         sync: false
       - key: SUPABASE_KEY
         sync: false
+
+  # Фронтенд: статическая сборка Vite, раздаётся CDN Render, бесплатно и без засыпания.
+  - type: web
+    name: candid-ai-web
+    runtime: static
+    branch: main
+    buildCommand: cd frontend && npm ci --no-audit --no-fund && npm run build
+    staticPublishPath: frontend/dist
+    pullRequestPreviewsEnabled: false
+    envVars:
+      # Адрес API. После первого деплоя Render подставит настоящий домен сервиса candid-ai-api.
+      - key: VITE_API_BASE
+        fromService:
+          type: web
+          name: candid-ai-api
+          envVarKey: RENDER_EXTERNAL_URL
+    routes:
+      # Одностраничное приложение: любой путь отдаёт index.html, роутер разберётся сам.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff

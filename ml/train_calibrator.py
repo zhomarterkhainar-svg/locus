@@ -53,13 +53,45 @@ def load(paths: list[str], human_weight: float) -> tuple[np.ndarray, np.ndarray,
     return np.array(xs, float), np.array(ys, float), np.array(ws, float), np.array(groups), stats
 
 
-def fit(x: np.ndarray, y: np.ndarray, w: np.ndarray, C: float = 1.0) -> tuple[np.ndarray, float]:
-    from sklearn.linear_model import LogisticRegression
+# Знак вклада каждого сигнала задан смыслом, а не данными: «далеко от кампуса», «похоже на мусор»
+# и «водяной знак» не могут повышать достоверность. Величину веса подбирает обучение, знак
+# фиксирован. Без этого слабая разметка иногда даёт бессмысленные знаки (сервис отсекает крайние
+# случаи гейтами до калибратора, и в данных остаётся мало примеров «далеко»), а карточка фото
+# показывает пользователю разбор вклада сигналов - он обязан быть честным.
+SIGNS = {"geo": 1, "geo_far": -1, "text": 1, "source": 1, "visual": 1, "category": 1, "trash": -1, "watermark": -1}
 
-    # без балансировки классов: слабая разметка собрана примерно поровну, а балансировка портит калибровку
-    clf = LogisticRegression(C=C, max_iter=2000)
-    clf.fit(x, y, sample_weight=w / w.mean())
-    return clf.coef_[0], float(clf.intercept_[0])
+
+def fit(x: np.ndarray, y: np.ndarray, w: np.ndarray, C: float = 1.0, constrain: bool = True) -> tuple[np.ndarray, float]:
+    """Логистическая регрессия с L2 и проекцией весов на допустимые знаки (проекционный градиентный спуск).
+
+    Без ограничений (constrain=False) это обычная логистическая регрессия, её результат есть в отчёте
+    для сравнения. Балансировки классов нет: слабая разметка собрана примерно поровну, а взвешивание
+    классов портит калибровку вероятностей.
+    """
+    if not constrain:
+        from sklearn.linear_model import LogisticRegression
+
+        clf = LogisticRegression(C=C, max_iter=2000)
+        clf.fit(x, y, sample_weight=w / w.mean())
+        return clf.coef_[0], float(clf.intercept_[0])
+
+    signs = np.array([SIGNS.get(f, 0) for f in FEATURES], dtype=np.float64)
+    sw = w / w.mean()
+    n = len(y)
+    beta = np.zeros(x.shape[1])
+    bias = 0.0
+    lr = 1.0
+    for step in range(6000):
+        z = x @ beta + bias
+        p = 1.0 / (1.0 + np.exp(-np.clip(z, -30, 30)))
+        err = sw * (p - y)
+        grad = x.T @ err / n + beta / (C * n)
+        beta -= lr * grad
+        bias -= lr * float(err.mean())
+        beta = np.where(signs > 0, np.maximum(beta, 0.0), np.where(signs < 0, np.minimum(beta, 0.0), beta))
+        if step == 3000:
+            lr *= 0.3
+    return beta, float(bias)
 
 
 def ece(p: np.ndarray, y: np.ndarray, bins: int = 10) -> float:
@@ -93,14 +125,16 @@ def main() -> None:
     ap.add_argument("paths", nargs="+")
     ap.add_argument("--human-weight", type=float, default=3.0)
     ap.add_argument("--target-precision", type=float, default=0.92)
+    ap.add_argument("--free-signs", action="store_true", help="без ограничения знаков (для сравнения)")
     args = ap.parse_args()
+    constrain = not args.free_signs
     x, y, w, groups, stats = load(args.paths, args.human_weight)
     if len(y) < 40:
         sys.exit(f"Мало размеченных строк: {len(y)}. Нужно хотя бы 40, лучше 300+.")
     probs = np.zeros(len(y))
     for test in group_folds(groups, 5):
         train = np.setdiff1d(np.arange(len(y)), test)
-        coef, b = fit(x[train], y[train], w[train])
+        coef, b = fit(x[train], y[train], w[train], constrain=constrain)
         probs[test] = 1 / (1 + np.exp(-(x[test] @ coef + b)))
     high_t = pick_threshold(probs, y, args.target_precision)
     medium_t = round(min(0.5, high_t - 0.15), 2)
@@ -117,13 +151,25 @@ def main() -> None:
         "cv_recall_high": round(float((high & (y == 1)).sum() / max((y == 1).sum(), 1)), 3),
         "positives": int(y.sum()), "negatives": int(len(y) - y.sum()), "universities": int(len(set(groups.tolist()))),
     }
-    coef, b = fit(x, y, w)
+    # Для отчёта считаем и вариант без ограничения знаков: видно, что фиксация знаков
+    # почти не стоит качества, зато разбор сигналов в карточке остаётся осмысленным.
+    free_probs = np.zeros(len(y))
+    for test in group_folds(groups, 5):
+        train = np.setdiff1d(np.arange(len(y)), test)
+        fc, fb = fit(x[train], y[train], w[train], constrain=False)
+        free_probs[test] = 1 / (1 + np.exp(-(x[test] @ fc + fb)))
+    metrics["sign_constrained"] = constrain
+    metrics["cv_accuracy_free_signs"] = round(float(((free_probs >= 0.5) == y).mean()), 3)
+    metrics["cv_brier_free_signs"] = round(float(((free_probs - y) ** 2).mean()), 3)
+
+    coef, b = fit(x, y, w, constrain=constrain)
     current = json.loads(OUT.read_text(encoding="utf-8"))
     kinds = ", ".join(f"{k}: {v}" for k, v in stats.items())
     current.update({
         "trained": True,
         "note": f"Обучено на {len(y)} примерах ({kinds}) по {metrics['universities']} вузам, кросс-валидация по вузам. "
-                "Слабая разметка: категории Wikimedia Commons, см. ml/build_calibrator_data.py.",
+                "Слабая разметка: категории Wikimedia Commons, см. ml/build_calibrator_data.py. "
+                + ("Знак вклада каждого сигнала зафиксирован по смыслу, величина подобрана обучением." if constrain else "Знаки весов не ограничены."),
         "trained_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "samples": int(len(y)),
         "metrics": metrics,
