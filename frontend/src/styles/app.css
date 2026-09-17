@@ -2526,3 +2526,29 @@ a.cand:hover {
 .plan__tile--dark {
   filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.95) saturate(0.7);
 }
+
+/* Плотная сетка: весь фонд видно одним экраном, когда карточек много. */
+.grid--dense {
+  grid-template-columns: repeat(auto-fill, minmax(146px, 1fr));
+  gap: var(--s-3);
+}
+.grid--dense .ccard__title {
+  font-size: var(--fs-13);
+  -webkit-line-clamp: 1;
+  min-height: 0;
+}
+.grid--dense .ccard__open {
+  padding-bottom: var(--s-4);
+}
+
+/* Лупа в карточке фото */
+.record__photo img {
+  cursor: zoom-in;
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.record__photo.is-zoomed {
+  overflow: hidden;
+}
+.record__photo.is-zoomed img {
+  cursor: zoom-out;
+}

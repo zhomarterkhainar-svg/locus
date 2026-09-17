@@ -171,5 +171,8 @@ def _age(updated_at: str | None) -> float | None:
 def info() -> dict[str, Any]:
     if not enabled():
         return {"enabled": False, "note": "SUPABASE_URL и SUPABASE_KEY не заданы: кэш только локальный."}
+    # Показываем и проект, и фактический адрес запроса без ключа: по нему сразу видно,
+    # что именно не так - лишний путь в переменной окружения или отсутствующая таблица.
     return {"enabled": True, "ok": _state["ok"], "error": _state["error"] or None,
-            "url": get_settings().supabase_url.split("//")[-1].split(".")[0]}
+            "url": get_settings().supabase_url.split("//")[-1].split(".")[0],
+            "endpoint": _url("profile_cache")}

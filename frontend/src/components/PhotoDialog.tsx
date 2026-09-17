@@ -25,9 +25,12 @@ export function PhotoDialog({ photo, onClose, onStep, position, calibratorTraine
   const [showBoxes, setShowBoxes] = useState(true);
   const [sent, setSent] = useState<Record<string, string>>({});
   const [imgSrc, setImgSrc] = useState<string>("");
+  // Лупа: клик увеличивает кадр вдвое вокруг точки нажатия, повторный клик возвращает.
+  const [zoom, setZoom] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     if (photo) setImgSrc(largeThumb(photo.image_url));
+    setZoom(null);
   }, [photo]);
 
   async function mark(kind: FeedbackKind) {
@@ -68,14 +71,26 @@ export function PhotoDialog({ photo, onClose, onStep, position, calibratorTraine
           </div>
           <div className="record__grid">
             <div className="record__media">
-              <div className="record__photo">
+              <div className={`record__photo${zoom ? " is-zoomed" : ""}`}>
                 <img
                   src={imgSrc || photo.image_url}
                   alt={photo.title}
                   referrerPolicy="no-referrer"
-                  onError={() => imgSrc !== photo.image_url && setImgSrc(photo.image_url)}
+                  style={zoom ? { transform: "scale(2)", transformOrigin: `${zoom.x}% ${zoom.y}%` } : undefined}
+                  onClick={(e) => {
+                    if (zoom) {
+                      setZoom(null);
+                      return;
+                    }
+                    const box = e.currentTarget.getBoundingClientRect();
+                    setZoom({
+                      x: ((e.clientX - box.left) / box.width) * 100,
+                      y: ((e.clientY - box.top) / box.height) * 100,
+                    });
+                  }}
+                  title={zoom ? "Вернуть масштаб" : "Нажмите, чтобы увеличить"}
                 />
-                {showBoxes ? <Boxes boxes={photo.boxes} /> : null}
+                {showBoxes && !zoom ? <Boxes boxes={photo.boxes} /> : null}
               </div>
               {photo.boxes.length ? (
                 <label className="record__toggle">

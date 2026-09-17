@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useTheme } from "../lib/theme";
 import { Icon } from "./Icon";
@@ -21,6 +22,24 @@ export function ThemeToggle() {
 }
 
 export function TopBar({ withSearch = false }: { withSearch?: boolean }) {
+  // Клавиша «/» ставит курсор в поиск, если пользователь не печатает в другом поле.
+  useEffect(() => {
+    if (!withSearch) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = document.activeElement;
+      const tag = el?.tagName.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select" || (el as HTMLElement)?.isContentEditable) return;
+      const input = document.querySelector<HTMLInputElement>(".topbar__search input");
+      if (!input) return;
+      e.preventDefault();
+      input.focus();
+      input.select();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [withSearch]);
+
   return (
     <header className="topbar">
       <div className="topbar__inner">

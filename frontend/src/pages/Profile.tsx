@@ -43,6 +43,7 @@ export function Profile() {
   const state = useProfileStream(qid, nonce, fresh);
   const [drawer, setDrawer] = useState("all");
   const [sort, setSort] = useState<"confidence" | "date">("confidence");
+  const [dense, setDense] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [hoverFact, setHoverFact] = useState<FactView | null>(null);
   const [onlyGeo, setOnlyGeo] = useState(false);
@@ -265,6 +266,15 @@ export function Profile() {
           <section className="profile__fonds" aria-labelledby="fonds-title">
             <div className="fonds__head">
               <h2 id="fonds-title" className="panel-title">Фонд фотографий</h2>
+              <button
+                type="button"
+                className="btn btn--ghost btn--small"
+                onClick={() => setDense((v) => !v)}
+                aria-pressed={dense}
+                title={dense ? "Крупные карточки" : "Больше карточек на экране"}
+              >
+                <Icon name="grid" size={13} /> {dense ? "Крупнее" : "Плотнее"}
+              </button>
               <label className="sort">
                 <span>Порядок</span>
                 <select value={sort} onChange={(e) => setSort(e.target.value as "confidence" | "date")}>
@@ -343,7 +353,7 @@ export function Profile() {
 
             <div className="fonds__panel" role="tabpanel">
               {visible.length ? (
-                <div className="grid">
+                <div className={`grid${dense ? " grid--dense" : ""}`}>
                   {visible.map((p) => (
                     <CatalogCard key={p.id} photo={p} onOpen={setOpenId} highlightBoxes={evidence.has(p.id) ? evidence.get(p.id)! : null} />
                   ))}
