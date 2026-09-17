@@ -1,37 +1,37 @@
 {
   "trained": true,
-  "note": "Обучено на 1783 примерах (weak: 1783) по 30 вузам, кросс-валидация по вузам. Слабая разметка: категории Wikimedia Commons, см. ml/build_calibrator_data.py. Знак вклада каждого сигнала зафиксирован по смыслу, величина подобрана обучением.",
-  "samples": 1783,
+  "note": "Обучено на 698 примерах (weak: 698) по 14 вузам, кросс-валидация по вузам. Слабая разметка: категории Wikimedia Commons, см. ml/build_calibrator_data.py. Знак вклада каждого сигнала зафиксирован по смыслу, величина подобрана обучением.",
+  "samples": 698,
   "metrics": {
     "cv": "5 фолдов по вузам",
-    "cv_accuracy": 0.866,
-    "cv_brier": 0.104,
-    "cv_ece": 0.046,
+    "cv_accuracy": 0.825,
+    "cv_brier": 0.152,
+    "cv_ece": 0.101,
     "cv_precision_high": 1.0,
-    "cv_share_high": 0.489,
+    "cv_share_high": 0.308,
     "cv_precision_medium": 1.0,
-    "cv_recall_high": 0.782,
-    "positives": 1114,
-    "negatives": 669,
-    "universities": 30,
+    "cv_recall_high": 0.636,
+    "positives": 338,
+    "negatives": 360,
+    "universities": 14,
     "sign_constrained": true,
-    "cv_accuracy_free_signs": 0.865,
-    "cv_brier_free_signs": 0.106
+    "cv_accuracy_free_signs": 0.825,
+    "cv_brier_free_signs": 0.155
   },
-  "bias": -3.8554,
+  "bias": -3.7968,
   "weights": {
-    "geo": 3.6031,
+    "geo": 2.4499,
     "geo_far": 0.0,
-    "text": 5.7615,
-    "source": 6.0933,
-    "visual": 1.5003,
+    "text": 3.5539,
+    "source": 6.0503,
+    "visual": 0.957,
     "category": 0.0,
     "trash": 0.0,
-    "watermark": 0.0
+    "watermark": -0.345
   },
   "thresholds": {
     "high": 0.6,
     "medium": 0.45
   },
-  "trained_at": "2026-09-17T15:55:32+00:00"
+  "trained_at": "2026-09-17T16:55:40+00:00"
 }

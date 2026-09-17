@@ -1,128 +1,128 @@
 {
   "model": "Xenova/clip-vit-base-patch32/vision_model_quantized.onnx",
-  "trained_at": "2026-09-17T15:04:25+00:00",
+  "trained_at": "2026-09-17T16:48:18+00:00",
   "dataset": {
-    "rows": 8423,
+    "rows": 10612,
     "by_source": {
-      "commons": 4223,
+      "commons": 6412,
       "places365": 4200
     }
   },
   "eval_manual_43": {
     "n": 43,
     "zero_shot": {
-      "category_accuracy": 0.744,
+      "category_accuracy": 0.791,
       "trash_vs_photo_accuracy": 0.93
     },
     "blend": {
-      "category_accuracy": 0.721,
-      "trash_vs_photo_accuracy": 0.953
+      "category_accuracy": 0.837,
+      "trash_vs_photo_accuracy": 0.977
     },
     "head": {
-      "category_accuracy": 0.721,
-      "trash_vs_photo_accuracy": 0.953
+      "category_accuracy": 0.814,
+      "trash_vs_photo_accuracy": 0.977
     }
   },
   "heads": {
     "category": {
-      "alpha": 0.8,
-      "C": 30.0,
+      "alpha": 0.7,
+      "C": 1.0,
       "metrics": {
-        "n_train": 3954,
-        "n_val": 760,
-        "n_test": 735,
+        "n_train": 5208,
+        "n_val": 1022,
+        "n_test": 876,
         "zero_shot": {
-          "accuracy": 0.6721,
-          "macro_f1": 0.6605
+          "accuracy": 0.6587,
+          "macro_f1": 0.6107
         },
         "head": {
-          "accuracy": 0.7415,
-          "macro_f1": 0.7291
+          "accuracy": 0.7317,
+          "macro_f1": 0.7214
         },
         "blend": {
-          "accuracy": 0.7442,
-          "macro_f1": 0.7317
+          "accuracy": 0.7534,
+          "macro_f1": 0.7359
         },
         "per_class_f1_blend": {
-          "campus": 0.569,
-          "dormitory": 0.783,
-          "classroom": 0.804,
-          "library": 0.655,
-          "lab": 0.839,
-          "sport": 0.874,
-          "canteen": 0.726,
-          "student_life": 0.353,
-          "city": 0.73,
-          "trash:logo": 0.8,
-          "trash:text": 0.814,
-          "trash:portrait": 0.7,
+          "campus": 0.493,
+          "dormitory": 0.712,
+          "classroom": 0.857,
+          "library": 0.594,
+          "lab": 0.731,
+          "sport": 0.839,
+          "canteen": 0.761,
+          "student_life": 0.596,
+          "city": 0.727,
+          "trash:logo": null,
+          "trash:text": null,
+          "trash:portrait": 0.861,
           "trash:map": null,
-          "trash:stamp": 0.864,
+          "trash:stamp": 0.924,
           "trash:other": null
         },
         "val_alpha_curve": [
           {
             "alpha": 0.0,
-            "macro_f1": 0.4778
+            "macro_f1": 0.4496
           },
           {
             "alpha": 0.1,
-            "macro_f1": 0.5137
+            "macro_f1": 0.463
           },
           {
             "alpha": 0.2,
-            "macro_f1": 0.549
+            "macro_f1": 0.4815
           },
           {
             "alpha": 0.3,
-            "macro_f1": 0.5593
+            "macro_f1": 0.4854
           },
           {
             "alpha": 0.4,
-            "macro_f1": 0.5765
+            "macro_f1": 0.4939
           },
           {
             "alpha": 0.5,
-            "macro_f1": 0.5864
+            "macro_f1": 0.4951
           },
           {
             "alpha": 0.6,
-            "macro_f1": 0.5903
+            "macro_f1": 0.4973
           },
           {
             "alpha": 0.7,
-            "macro_f1": 0.5939
+            "macro_f1": 0.4993
           },
           {
             "alpha": 0.8,
-            "macro_f1": 0.5971
+            "macro_f1": 0.4977
           },
           {
             "alpha": 0.9,
-            "macro_f1": 0.5962
+            "macro_f1": 0.4941
           },
           {
             "alpha": 1.0,
-            "macro_f1": 0.5911
+            "macro_f1": 0.4933
           }
         ],
-        "removed_by_cleaning": 164,
+        "removed_by_cleaning": 264,
         "class_counts": {
-          "campus": 478,
-          "dormitory": 397,
-          "classroom": 492,
-          "library": 290,
-          "lab": 597,
-          "sport": 671,
-          "canteen": 485,
-          "student_life": 188,
-          "city": 762,
-          "trash:logo": 161,
-          "trash:text": 191,
-          "trash:portrait": 197,
-          "trash:map": 178,
-          "trash:stamp": 194,
-          "trash:other": 168
+          "campus": 583,
+          "dormitory": 519,
+          "classroom": 609,
+          "library": 403,
+          "lab": 707,
+          "sport": 781,
+          "canteen": 588,
+          "student_life": 297,
+          "city": 870,
+          "trash:logo": 265,
+          "trash:text": 301,
+          "trash:portrait": 315,
+          "trash:map": 295,
+          "trash:stamp": 310,
+          "trash:other": 263
         }
       },
       "keys": [
@@ -144,84 +144,84 @@
       ]
     },
     "dorm_sub": {
-      "alpha": 1.0,
-      "C": 10.0,
+      "alpha": 0.8,
+      "C": 30.0,
       "metrics": {
-        "n_train": 988,
-        "n_val": 234,
-        "n_test": 175,
+        "n_train": 1123,
+        "n_val": 273,
+        "n_test": 199,
         "zero_shot": {
-          "accuracy": 0.8914,
-          "macro_f1": 0.8909
+          "accuracy": 0.8794,
+          "macro_f1": 0.8719
         },
         "head": {
-          "accuracy": 0.9371,
-          "macro_f1": 0.94
+          "accuracy": 0.9045,
+          "macro_f1": 0.8979
         },
         "blend": {
-          "accuracy": 0.9371,
-          "macro_f1": 0.94
+          "accuracy": 0.9045,
+          "macro_f1": 0.9027
         },
         "per_class_f1_blend": {
-          "dorm_room": 0.921,
-          "dorm_kitchen": 0.903,
-          "dorm_bathroom": 0.94,
-          "dorm_exterior": 0.963,
-          "dorm_corridor": 0.972
+          "dorm_room": 0.911,
+          "dorm_kitchen": 0.891,
+          "dorm_bathroom": 0.889,
+          "dorm_exterior": 0.875,
+          "dorm_corridor": 0.947
         },
         "val_alpha_curve": [
           {
             "alpha": 0.0,
-            "macro_f1": 0.8816
+            "macro_f1": 0.846
           },
           {
             "alpha": 0.1,
-            "macro_f1": 0.8816
+            "macro_f1": 0.8423
           },
           {
             "alpha": 0.2,
-            "macro_f1": 0.8901
+            "macro_f1": 0.8423
           },
           {
             "alpha": 0.3,
-            "macro_f1": 0.8901
+            "macro_f1": 0.86
           },
           {
             "alpha": 0.4,
-            "macro_f1": 0.8874
+            "macro_f1": 0.8636
           },
           {
             "alpha": 0.5,
-            "macro_f1": 0.8936
+            "macro_f1": 0.889
           },
           {
             "alpha": 0.6,
-            "macro_f1": 0.9029
+            "macro_f1": 0.8888
           },
           {
             "alpha": 0.7,
-            "macro_f1": 0.9042
+            "macro_f1": 0.8888
           },
           {
             "alpha": 0.8,
-            "macro_f1": 0.9024
+            "macro_f1": 0.8895
           },
           {
             "alpha": 0.9,
-            "macro_f1": 0.9024
+            "macro_f1": 0.8888
           },
           {
             "alpha": 1.0,
-            "macro_f1": 0.9042
+            "macro_f1": 0.8844
           }
         ],
         "removed_by_cleaning": 0,
         "class_counts": {
-          "dorm_room": 420,
-          "dorm_kitchen": 220,
-          "dorm_bathroom": 318,
-          "dorm_exterior": 219,
-          "dorm_corridor": 220
+          "dorm_room": 460,
+          "dorm_kitchen": 260,
+          "dorm_bathroom": 356,
+          "dorm_exterior": 259,
+          "dorm_corridor": 260
         }
       },
       "keys": [
@@ -233,82 +233,82 @@
       ]
     },
     "sport_sub": {
-      "alpha": 0.9,
+      "alpha": 0.3,
       "C": 0.3,
       "metrics": {
-        "n_train": 677,
-        "n_val": 154,
-        "n_test": 142,
+        "n_train": 728,
+        "n_val": 253,
+        "n_test": 148,
         "zero_shot": {
-          "accuracy": 0.7817,
-          "macro_f1": 0.8027
+          "accuracy": 0.6892,
+          "macro_f1": 0.7007
         },
         "head": {
-          "accuracy": 0.7535,
-          "macro_f1": 0.7603
+          "accuracy": 0.6622,
+          "macro_f1": 0.6634
         },
         "blend": {
-          "accuracy": 0.7746,
-          "macro_f1": 0.7879
+          "accuracy": 0.6892,
+          "macro_f1": 0.6979
         },
         "per_class_f1_blend": {
-          "sport_gym": 0.784,
-          "sport_pool": 0.842,
-          "sport_stadium": 0.806,
-          "sport_court": 0.72
+          "sport_gym": 0.6,
+          "sport_pool": 0.8,
+          "sport_stadium": 0.72,
+          "sport_court": 0.672
         },
         "val_alpha_curve": [
           {
             "alpha": 0.0,
-            "macro_f1": 0.9092
+            "macro_f1": 0.8939
           },
           {
             "alpha": 0.1,
-            "macro_f1": 0.9092
+            "macro_f1": 0.8939
           },
           {
             "alpha": 0.2,
-            "macro_f1": 0.9092
+            "macro_f1": 0.8939
           },
           {
             "alpha": 0.3,
-            "macro_f1": 0.9092
+            "macro_f1": 0.8942
           },
           {
             "alpha": 0.4,
-            "macro_f1": 0.9092
+            "macro_f1": 0.8896
           },
           {
             "alpha": 0.5,
-            "macro_f1": 0.8908
+            "macro_f1": 0.8935
           },
           {
             "alpha": 0.6,
-            "macro_f1": 0.8895
+            "macro_f1": 0.8872
           },
           {
             "alpha": 0.7,
-            "macro_f1": 0.8895
+            "macro_f1": 0.8777
           },
           {
             "alpha": 0.8,
-            "macro_f1": 0.9048
+            "macro_f1": 0.8777
           },
           {
             "alpha": 0.9,
-            "macro_f1": 0.9213
+            "macro_f1": 0.8595
           },
           {
             "alpha": 1.0,
-            "macro_f1": 0.8972
+            "macro_f1": 0.8185
           }
         ],
         "removed_by_cleaning": 0,
         "class_counts": {
-          "sport_gym": 218,
-          "sport_pool": 219,
-          "sport_stadium": 319,
-          "sport_court": 217
+          "sport_gym": 256,
+          "sport_pool": 258,
+          "sport_stadium": 358,
+          "sport_court": 257
         }
       },
       "keys": [
@@ -319,78 +319,78 @@
       ]
     },
     "bunk": {
-      "alpha": 0.9,
-      "C": 100.0,
+      "alpha": 1.0,
+      "C": 3.0,
       "metrics": {
-        "n_train": 260,
-        "n_val": 69,
-        "n_test": 31,
+        "n_train": 299,
+        "n_val": 88,
+        "n_test": 46,
         "zero_shot": {
-          "accuracy": 0.5484,
-          "macro_f1": 0.5068
+          "accuracy": 0.6739,
+          "macro_f1": 0.6456
         },
         "head": {
-          "accuracy": 0.9032,
-          "macro_f1": 0.805
+          "accuracy": 0.9783,
+          "macro_f1": 0.9782
         },
         "blend": {
-          "accuracy": 0.871,
-          "macro_f1": 0.7615
+          "accuracy": 0.9783,
+          "macro_f1": 0.9782
         },
         "per_class_f1_blend": {
-          "bunk_bed": 0.6,
-          "single_bed": 0.923
+          "bunk_bed": 0.98,
+          "single_bed": 0.977
         },
         "val_alpha_curve": [
           {
             "alpha": 0.0,
-            "macro_f1": 0.3538
+            "macro_f1": 0.3176
           },
           {
             "alpha": 0.1,
-            "macro_f1": 0.4225
+            "macro_f1": 0.3411
           },
           {
             "alpha": 0.2,
-            "macro_f1": 0.4871
+            "macro_f1": 0.3636
           },
           {
             "alpha": 0.3,
-            "macro_f1": 0.5528
+            "macro_f1": 0.3906
           },
           {
             "alpha": 0.4,
-            "macro_f1": 0.5886
+            "macro_f1": 0.4116
           },
           {
             "alpha": 0.5,
-            "macro_f1": 0.6025
+            "macro_f1": 0.4374
           },
           {
             "alpha": 0.6,
-            "macro_f1": 0.6025
+            "macro_f1": 0.4805
           },
           {
             "alpha": 0.7,
-            "macro_f1": 0.6025
+            "macro_f1": 0.4805
           },
           {
             "alpha": 0.8,
-            "macro_f1": 0.6178
+            "macro_f1": 0.5049
           },
           {
             "alpha": 0.9,
-            "macro_f1": 0.6178
+            "macro_f1": 0.5049
           },
           {
             "alpha": 1.0,
-            "macro_f1": 0.6178
+            "macro_f1": 0.5049
           }
         ],
         "removed_by_cleaning": 0,
         "class_counts": {
-          "bunk_bed": 77,
-          "single_bed": 283
+          "bunk_bed": 124,
+          "single_bed": 309
         }
       },
       "keys": [
